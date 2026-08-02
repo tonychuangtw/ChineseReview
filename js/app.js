@@ -214,6 +214,26 @@
     return entries;
   }
 
+  // 單元學習：把單一年級的題庫依 id 序切成單元（4成語+2俚語+4字音+4字形≈14 條），
+  // 尾端不足 6 條就併入前一單元。決定性切法：同年級永遠切出同樣的單元。
+  function buildUnits(data, grade) {
+    var cats = ['idioms', 'slang', 'phonics', 'chars'];
+    var take = { idioms: 4, slang: 2, phonics: 4, chars: 4 };
+    var qs = {}, idx = {};
+    cats.forEach(function (c) { qs[c] = filterByGrades(data[c] || [], [grade]); idx[c] = 0; });
+    var units = [];
+    while (true) {
+      var u = [];
+      cats.forEach(function (c) {
+        for (var i = 0; i < take[c] && idx[c] < qs[c].length; i++) u.push({ t: c, id: qs[c][idx[c]++].id });
+      });
+      if (!u.length) break;
+      if (u.length < 6 && units.length) units[units.length - 1] = units[units.length - 1].concat(u);
+      else units.push(u);
+    }
+    return units;
+  }
+
   // 弱點分析：由累計統計找出正確率最低與最高的類別（各類至少答過 10 題才納入）
   function weakStrong(stats) {
     var cats = ['idioms', 'slang', 'phonics', 'chars'];
@@ -276,7 +296,7 @@
     buildPhonicsQ: buildPhonicsQ, buildCharsQ: buildCharsQ,
     buildSynQ: buildSynQ, buildReadingQ: buildReadingQ,
     rngFromString: rngFromString, seededPick: seededPick, composeDaily: composeDaily,
-    weakStrong: weakStrong, bumpWrongSchedule: bumpWrongSchedule,
+    weakStrong: weakStrong, bumpWrongSchedule: bumpWrongSchedule, buildUnits: buildUnits,
     dailyStreak: dailyStreak,
     nextDue: nextDue, gradeLabel: gradeLabel
   };
@@ -335,15 +355,13 @@
     save();
   }
 
-  function updateWrongSchedule(t, id, ok) {
-    var w = state.wrong.find(function (x) { return x.t === t && x.id === id; });
-    if (!w) return;
-    var r = bumpWrongSchedule(w, ok, today());
-    if (r === 'graduate') {
-      state.wrong = state.wrong.filter(function (x) { return !(x.t === t && x.id === id); });
-      setStatusToast('🎓 「' + labelOf(t, id) + '」已從錯題本畢業');
+  function removeWrong(t, id) {
+    var before = state.wrong.length;
+    state.wrong = state.wrong.filter(function (x) { return !(x.t === t && x.id === id); });
+    if (state.wrong.length < before) {
+      setStatusToast('🎓 「' + labelOf(t, id) + '」答對了，移出錯題本');
+      save();
     }
-    save();
   }
 
   function labelOf(t, id) {
@@ -358,7 +376,7 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing'];
+  var views = ['home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
@@ -389,6 +407,8 @@
     var dueN = state.wrong.filter(function (w) { return (w.due || '') <= today(); }).length;
     if (dueN) $('cnt-wrong').textContent = state.wrong.length + ' 題待複習 · ' + dueN + ' 題到期';
     $('cnt-writing').textContent = '每日一句 · 仿寫';
+    var uDone = Object.keys(state.units || {}).length;
+    $('cnt-units').textContent = uDone ? '已完成 ' + uDone + ' 個單元' : '先教後考 · 逐關解鎖';
     $('phonToggle').textContent = state.phon === 'zhuyin' ? '注音' : '拼音';
     renderGradeBtn();
   }
@@ -459,6 +479,7 @@
       else if (go === 'daily') startDaily();
       else if (go === 'reading') startReading();
       else if (go === 'writing') showWriting();
+      else if (go === 'units') showUnits();
       else if (go === 'write') startWrite();
       else if (go === 'flash') startFlash();
       else if (go === 'wrongbook') showWrongbook();
@@ -580,8 +601,8 @@
     var k = entryKey(e);
     var firstEncounter = quiz.firstTry[k] === undefined;
     if (firstEncounter) quiz.firstTry[k] = ok;
-    // 錯題間隔重考：複習題第一次作答結果決定升級或重排
-    if (firstEncounter && (e.rev || quiz.mode === 'retry')) updateWrongSchedule(q.type, q.item.id, ok);
+    // 錯題本：之後任何一次答對就移除（每日第二輪、錯題重練、平常練習都算）
+    if (ok && q.type !== 'reading') removeWrong(q.type, q.item.id);
     if (!ok) quiz.wrongNow.push(e);
     bumpStat(q.type, ok);
     if (!ok && q.type !== 'reading' && quiz.round === 1) addWrong(q.type, q.item.id);
@@ -595,7 +616,7 @@
   }
 
   function finishRound() {
-    if (quiz.mode === 'daily') {
+    if (quiz.mode === 'daily' || quiz.mode === 'unit') {
       if (quiz.wrongNow.length) {
         // 精熟迴圈：錯的題目下一輪重做，直到全對
         var again = shuffle(quiz.wrongNow);
@@ -608,7 +629,7 @@
         setStatusToast('還有 ' + again.length + ' 題沒答對，再來一輪 💪');
         return;
       }
-      completeDaily();
+      if (quiz.mode === 'unit') completeUnit(); else completeDaily();
       return;
     }
     document.querySelector('#view-quiz .quiz-card').classList.add('hidden');
@@ -769,6 +790,7 @@
     $('writeJudge').classList.add('hidden');
     $('writeNote').classList.add('hidden');
     $('writeReveal').classList.remove('hidden');
+    $('strokeWrap').classList.add('hidden');
     clearCanvas();
   }
 
@@ -798,6 +820,7 @@
     $('writeAnswer').classList.remove('hidden');
     $('writeJudge').classList.remove('hidden');
     $('writeReveal').classList.add('hidden');
+    showStroke(it.answer);
     if (it.note) {
       $('writeNote').textContent = it.note;
       $('writeNote').className = 'q-feedback';
@@ -806,7 +829,7 @@
   });
   function judgeWrite(ok) {
     var it = wr.items[wr.i];
-    if (ok) wr.score++;
+    if (ok) { wr.score++; removeWrong('chars', it.id); }
     bumpStat('write', ok);
     if (!ok) addWrong('chars', it.id);
     wr.i++;
@@ -822,6 +845,31 @@
   $('writeRight').addEventListener('click', function () { judgeWrite(true); });
   $('writeWrong').addEventListener('click', function () { judgeWrite(false); });
   $('writeExit').addEventListener('click', function () { show('home'); });
+
+  // 筆順動畫:讀本地 strokes/uXXXX.json(hanzi-writer 資料),載不到就靜默隱藏
+  var strokeWriter = null;
+  function showStroke(ch) {
+    var wrap = $('strokeWrap'), panel = $('strokePanel');
+    if (!window.HanziWriter || typeof fetch === 'undefined') return;
+    panel.innerHTML = '';
+    fetch('strokes/u' + ch.codePointAt(0).toString(16) + '.json')
+      .then(function (r) { if (!r.ok) throw new Error('404'); return r.json(); })
+      .then(function (data) {
+        wrap.classList.remove('hidden');
+        strokeWriter = HanziWriter.create(panel, ch, {
+          width: 170, height: 170, padding: 10,
+          showOutline: true,
+          strokeColor: '#1a1c22', outlineColor: '#d5d8e0', radicalColor: '#2c66d9',
+          strokeAnimationSpeed: 1, delayBetweenStrokes: 220,
+          charDataLoader: function (c, onComplete) { onComplete(data); }
+        });
+        strokeWriter.animateCharacter();
+      })
+      .catch(function () { wrap.classList.add('hidden'); });
+  }
+  $('strokeReplay').addEventListener('click', function () {
+    if (strokeWriter) strokeWriter.animateCharacter();
+  });
 
   /* ---------- 字卡複習（Leitner 三盒） ---------- */
 
@@ -924,8 +972,8 @@
       var div = document.createElement('div');
       div.className = 'wrong-item';
       var label = it.term || (it.word ? it.word + '（' + it.target + '）' : it.answer + '：' + it.sentence);
-      var dueTxt = (w.due || '') <= today() ? '<span class="due-now">今日到期</span>' :
-        '下次 ' + (w.due || '—') + '（第' + (w.box || 1) + '關/3）';
+      var dueTxt = (w.due || '') <= today() ? '<span class="due-now">今日複習</span>' :
+        '下次複習 ' + (w.due || '—') + '，答對就移除';
       div.innerHTML = '<b>' + label + '</b> <small>' + CAT_NAME[w.t] + ' · 錯 ' + w.n + ' 次 · ' + dueTxt +
         '</small><br><small>' + (it.meaning || it.note || '') + '</small>';
       box.appendChild(div);
@@ -1048,6 +1096,119 @@
     }
   });
   $('progExit').addEventListener('click', function () { show('home'); });
+
+  /* ---------- 單元學習（先教後考，逐關解鎖） ---------- */
+
+  var lessonState = null; // {grade, unitIdx, items, i}
+
+  function unitKey(g, i) { return 'g' + g + '-u' + i; }
+
+  function showUnits() {
+    show('units');
+    if (!state.unitGrade) state.unitGrade = state.grades[state.grades.length - 1] || 5;
+    var row = $('unitGradeRow');
+    row.innerHTML = '';
+    for (var g = 1; g <= 12; g++) {
+      (function (g) {
+        var b = document.createElement('button');
+        b.className = 'chip' + (g === state.unitGrade ? ' active' : '');
+        b.textContent = gradeLabel(g);
+        b.addEventListener('click', function () { state.unitGrade = g; save(); showUnits(); });
+        row.appendChild(b);
+      })(g);
+    }
+    var list = $('unitList');
+    list.innerHTML = '';
+    var units = buildUnits(DATA, state.unitGrade);
+    state.units = state.units || {};
+    if (!units.length) { list.innerHTML = '<div class="empty">這個年級目前沒有教材。</div>'; return; }
+    units.forEach(function (u, i) {
+      var done = !!state.units[unitKey(state.unitGrade, i)];
+      var locked = i > 0 && !state.units[unitKey(state.unitGrade, i - 1)];
+      var div = document.createElement('button');
+      div.className = 'unit-item' + (done ? ' done' : locked ? ' locked' : '');
+      div.innerHTML = '<b>' + (done ? '✅' : locked ? '🔒' : '▶️') + ' 第 ' + (i + 1) + ' 單元</b>' +
+        '<small>' + u.length + ' 個詞條 · ' + (done ? '已完成，可重新練習' : locked ? '完成上一單元後解鎖' : '教學 → 測驗全對過關') + '</small>';
+      if (!locked) div.addEventListener('click', function () { startLesson(state.unitGrade, i, u); });
+      list.appendChild(div);
+    });
+  }
+  $('unitsExit').addEventListener('click', function () { show('home'); });
+
+  function startLesson(grade, unitIdx, items) {
+    lessonState = { grade: grade, unitIdx: unitIdx, items: items, i: 0 };
+    show('lesson');
+    renderLessonCard();
+  }
+
+  function renderLessonCard() {
+    var L = lessonState;
+    var e = L.items[L.i];
+    var it = findItem(e.t, e.id);
+    $('lessonInfo').textContent = gradeLabel(L.grade) + ' 第' + (L.unitIdx + 1) + '單元 · ' + (L.i + 1) + '/' + L.items.length;
+    $('lessonTag').textContent = '📖 教學 · ' + CAT_NAME[e.t];
+    var body = $('lessonBody');
+    body.innerHTML = '';
+    if (!it) { body.textContent = '資料載入失敗'; return; }
+    var z = state.phon === 'zhuyin';
+    function line(cls, text) {
+      var d = document.createElement('div');
+      d.className = cls; d.textContent = text;
+      body.appendChild(d);
+    }
+    if (e.t === 'idioms') {
+      line('lesson-term', it.term);
+      line('lesson-zy', z ? it.zhuyin : it.pinyin);
+      line('lesson-meaning', '💡 ' + it.meaning);
+      line('lesson-example', '例：' + it.example);
+      if (it.syn && it.syn.length) line('lesson-extra', '同義：' + it.syn.join('、'));
+      if (it.misuse) line('lesson-extra', '⚠️ ' + it.misuse);
+      maybeImg(body, 'idioms', it.id);
+    } else if (e.t === 'slang') {
+      line('lesson-term', it.term);
+      line('lesson-extra', '（' + it.kind + '）');
+      line('lesson-meaning', '💡 ' + it.meaning);
+      line('lesson-example', '例：' + it.example);
+    } else if (e.t === 'phonics') {
+      line('lesson-term', it.word);
+      line('lesson-zy', '「' + it.target + '」讀 ' + (z ? it.zhuyin : it.pinyin));
+      if (it.note) line('lesson-meaning', '💡 ' + it.note);
+    } else {
+      line('lesson-term', it.answer);
+      line('lesson-zy', z ? it.zhuyin : it.pinyin);
+      if (it.note) line('lesson-meaning', '💡 ' + it.note);
+      line('lesson-example', '例：' + it.sentence.split('（　）').join(it.answer));
+    }
+    $('lessonPrev').disabled = L.i === 0;
+    $('lessonNext').textContent = L.i === L.items.length - 1 ? '開始單元測驗 ✍️' : '下一個 →';
+  }
+
+  $('lessonPrev').addEventListener('click', function () {
+    if (lessonState.i > 0) { lessonState.i--; renderLessonCard(); }
+  });
+  $('lessonNext').addEventListener('click', function () {
+    var L = lessonState;
+    if (L.i < L.items.length - 1) { L.i++; renderLessonCard(); return; }
+    var entries = shuffle(L.items.slice());
+    beginQuiz(entries, 'unit', null);
+    quiz.total = entries.length;
+    quiz.unitKey = unitKey(L.grade, L.unitIdx);
+  });
+  $('lessonExit').addEventListener('click', function () { showUnits(); });
+
+  function completeUnit() {
+    state.units = state.units || {};
+    state.units[quiz.unitKey] = { done: true, ts: Date.now() };
+    save();
+    document.querySelector('#view-quiz .quiz-card').classList.add('hidden');
+    var r = $('quizResult');
+    r.innerHTML = '🎉 單元完成！<br><b style="font-size:1.6rem">' + quiz.total + ' 題全部答對</b><br>' +
+      (quiz.round > 1 ? '錯題重做 ' + (quiz.round - 1) + ' 輪後過關' : '一次全對，太強了！') +
+      '<br>下一單元已解鎖<br><button class="btn-primary" id="quizAgain">回單元列表</button>';
+    r.classList.remove('hidden');
+    confetti();
+    $('quizAgain').addEventListener('click', function () { showUnits(); });
+  }
 
   /* ---------- 寫作素材（每日一句 + 仿寫） ---------- */
 

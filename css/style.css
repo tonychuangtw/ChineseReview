@@ -107,6 +107,32 @@ body {
 }
 .due-now { color: #e0a13f; font-weight: 700; }
 
+/* ===== 單元學習 / 筆順 ===== */
+.unit-grades { flex-wrap: wrap; margin-bottom: 0.8rem; }
+.unit-item {
+  display: block; width: 100%; text-align: left;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.8rem 1rem; margin-bottom: 0.6rem; cursor: pointer;
+}
+.unit-item b { display: block; margin-bottom: 0.2rem; }
+.unit-item small { color: var(--dim); }
+.unit-item.done { border-color: var(--good); }
+.unit-item.locked { opacity: 0.5; cursor: not-allowed; }
+.lesson-body { text-align: center; padding: 0.5rem 0 1rem; }
+.lesson-term { font-size: 2rem; font-weight: 700; margin-bottom: 0.3rem; }
+.lesson-zy { color: var(--accent); font-size: 1.05rem; margin-bottom: 0.8rem; }
+.lesson-meaning { text-align: left; line-height: 1.8; margin-bottom: 0.5rem; }
+.lesson-example { text-align: left; color: var(--dim); line-height: 1.7; margin-bottom: 0.4rem; }
+.lesson-extra { text-align: left; color: var(--dim); font-size: 0.9rem; margin-bottom: 0.3rem; }
+.lesson-body .q-img { margin: 0.6rem auto 0; }
+.stroke-wrap { text-align: center; margin-top: 0.6rem; }
+.stroke-panel {
+  display: inline-block; background: #fff; border-radius: 12px;
+  border: 1px solid var(--border); line-height: 0;
+}
+.stroke-panel svg { background: #fff; border-radius: 12px; }
+
 /* ===== 雲端同步（Google 登入）===== */
 .sync-ui { display: flex; align-items: center; gap: 0.4rem; }
 .sync-chip {

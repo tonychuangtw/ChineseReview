@@ -134,6 +134,11 @@ console.log('多選年級 / 弱點 / 錯題排程 / 寫作素材');
   ok(PURE.bumpWrongSchedule(w1, true, '2026-08-12') === 'graduate', '三關後畢業');
   ok(PURE.bumpWrongSchedule(w1, false, '2026-08-12') === 'reset' && w1.box === 1, '答錯重排隔天');
   ok(D.writing.length >= 50, `寫作素材 ≥50（實際 ${D.writing.length}）`);
+  const u1 = PURE.buildUnits(D, 5), u2 = PURE.buildUnits(D, 5);
+  ok(JSON.stringify(u1) === JSON.stringify(u2), '單元切分決定性一致');
+  ok(u1.length >= 3 && u1.every(u => u.length >= 6), `小五單元 ≥3 且每單元 ≥6 條（實際 ${u1.length} 單元）`);
+  const allIds = u1.flat().map(e => e.t + e.id);
+  ok(new Set(allIds).size === allIds.length, '單元內詞條不重複');
   ok(D.writing.every(w => w.quote && w.src && w.tip && w.prompt && w.grade >= 1 && w.grade <= 12), '寫作素材欄位完整');
 }
 
