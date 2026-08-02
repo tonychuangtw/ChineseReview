@@ -33,4 +33,7 @@
 - ⚠️ 題庫內容不可交給 subagent 量產（2026-08-02 四個 agent 全交假貨），加題一律逐條人工撰寫並跑雙測試
 - 單元學習：`buildUnits(DATA, grade)` 依 id 序決定性切單元（4成語+2俚語+4字音+4字形），過關狀態存 state.units["gX-uY"]；教學卡 view-lesson、列表 view-units
 - 錯題本規則（Tony 2026-08-02 定案）：答對任何一次即移除（removeWrong），答錯留著排隔天；不再用 1→3→7 三關制
+- 自創題庫流程：Tony/老婆把 Word 題庫傳到這條 Telegram → 用 python-docx 或 pandoc 抽文字 → 轉成 js/data/custom.js 條目（id x 開頭連號、tag 標範圍如「五上月考1」、answer 為索引）→ 跑 test → commit push。答案不明的題要回問，不可用猜的
+- 錯題本保留制（2026-08-02 二次定案，推翻同日稍早的「答對即移除」）：答對記連對次數並延後 due（3→7→14 天），只有手動刪除（單刪/批刪）會移除；「用猜的」按鈕會把答對的題也 addWrong
+- 依序刷題進度存 state.drillPos[cat|grades]，自創題庫 key 為 'custom'
 - 筆順動畫：js/vendor/hanzi-writer.min.js + strokes/uXXXX.json（來源 hanzi-writer-data，Arphic 授權見 strokes/README.md）；新增字形題後跑一次下載腳本補字（參考 git log f3972f1 的做法）；載不到的字自動隱藏面板
