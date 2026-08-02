@@ -72,7 +72,7 @@
         question: item.example.split(item.term).join('（　　　　）') + '\n括號中應填入哪個成語？',
         options: opts.map(function (o) { return o.term; }),
         correct: opts.indexOf(item),
-        explain: item.term + '：' + item.meaning + (item.misuse ? '\n⚠️ ' + item.misuse : '')
+        explain: item.term + '：' + item.meaning + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '')
       };
     }
     var others2 = pickOthers(pool, item, 'meaning', 3);
@@ -82,7 +82,7 @@
       question: '「' + item.term + '」的意思是？',
       options: opts2.map(function (o) { return o.meaning; }),
       correct: opts2.indexOf(item),
-      explain: '例句：' + item.example + (item.misuse ? '\n⚠️ ' + item.misuse : '')
+      explain: '例句：' + item.example + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '')
     };
   }
 
@@ -1393,6 +1393,7 @@
       line('lesson-term', it.term);
       line('lesson-zy', z ? it.zhuyin : it.pinyin);
       line('lesson-meaning', '💡 ' + it.meaning);
+      if (it.wordExp) line('lesson-meaning', '🔍 逐字解析：' + it.wordExp);
       line('lesson-example', '例：' + it.example);
       if (it.syn && it.syn.length) line('lesson-extra', '同義：' + it.syn.join('、'));
       if (it.misuse) line('lesson-extra', '⚠️ ' + it.misuse);
