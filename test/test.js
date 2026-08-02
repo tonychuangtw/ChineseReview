@@ -5,7 +5,7 @@ const path = require('path');
 
 global.window = {};
 const root = path.join(__dirname, '..');
-for (const f of ['idioms', 'slang', 'phonics', 'chars']) {
+for (const f of ['idioms', 'slang', 'phonics', 'chars', 'reading']) {
   eval(fs.readFileSync(path.join(root, 'js/data', f + '.js'), 'utf8'));
 }
 global.window.APP_DATA = window.APP_DATA;
@@ -72,6 +72,50 @@ ok(PURE.nextDue(1, '2026-08-02') === '2026-08-03', 'Leitner 盒1 +1 天');
 ok(PURE.nextDue(2, '2026-08-02') === '2026-08-04', 'Leitner 盒2 +2 天');
 ok(PURE.nextDue(3, '2026-08-02') === '2026-08-07', 'Leitner 盒3 +5 天');
 ok(PURE.gradeLabel(1) === '小一' && PURE.gradeLabel(7) === '國一' && PURE.gradeLabel(12) === '高三', '年級標籤');
+
+console.log('閱讀測驗');
+ok(D.reading.length >= 30, `閱讀題組 ≥30（實際 ${D.reading.length}）`);
+ok(D.reading.every(r => r.passage && r.questions.length >= 2 &&
+  r.questions.every(q => q.options.length === 4 && q.answer >= 0 && q.answer <= 3 && q.exp)),
+  '閱讀題組欄位完整、每題 4 選項有解說');
+{
+  const dist = [0, 0, 0, 0];
+  D.reading.forEach(r => r.questions.forEach(q => dist[q.answer]++));
+  const total = dist.reduce((a, b) => a + b, 0);
+  ok(Math.max(...dist) / total < 0.5, `閱讀答案位置分散（${dist.join('/')}）`);
+  const rq = PURE.buildReadingQ(D.reading[0], 0);
+  ok(rq.options[rq.correct] === D.reading[0].questions[0].options[D.reading[0].questions[0].answer],
+    '閱讀題答案索引正確');
+}
+
+console.log('同義成語');
+{
+  const withSyn = D.idioms.filter(i => Array.isArray(i.syn) && i.syn.length);
+  ok(withSyn.length >= 100, `含同義詞成語 ≥100（實際 ${withSyn.length}）`);
+  ok(withSyn.every(i => !i.syn.includes(i.term)), 'syn 不含自身');
+  for (let t = 0; t < 100; t++) {
+    const it = withSyn[t % withSyn.length];
+    const q = PURE.buildSynQ(it, D.idioms);
+    if (!(q.options.length === 4 && it.syn.includes(q.options[q.correct]))) {
+      ok(false, '同義題答案不在 syn 內 @' + it.id); break;
+    }
+    if (t === 99) ok(true, '同義題 100 次生成答案皆為同義成語');
+  }
+}
+
+console.log('每日練習');
+{
+  const a = PURE.composeDaily(D, 5, true, '2026-08-02|5|1');
+  const b = PURE.composeDaily(D, 5, true, '2026-08-02|5|1');
+  const c = PURE.composeDaily(D, 5, true, '2026-08-03|5|1');
+  ok(JSON.stringify(a) === JSON.stringify(b), '同種子組卷結果一致');
+  ok(JSON.stringify(a) !== JSON.stringify(c), '不同日期組卷不同');
+  ok(a.length >= 11, `組卷題數 ≥11（實際 ${a.length}）`);
+  const cats = new Set(a.map(e => e.t));
+  ok(cats.has('idioms') && cats.has('slang') && cats.has('phonics') && cats.has('chars'), '組卷涵蓋四大類');
+  ok(PURE.dailyStreak({ '2026-08-01': { done: true }, '2026-08-02': { done: true } }, '2026-08-02') === 2, '連續天數計算（今天已做）');
+  ok(PURE.dailyStreak({ '2026-08-01': { done: true } }, '2026-08-02') === 1, '連續天數計算（今天未做從昨天回數）');
+}
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
 process.exit(failed ? 1 : 0);

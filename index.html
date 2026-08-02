@@ -23,6 +23,10 @@
     <label class="cum-label"><input type="checkbox" id="cumChk" checked> 含以下年級題目</label>
   </div>
   <div class="cards">
+    <button class="card card-wide card-daily" data-go="daily">
+      <span class="card-icon">📅</span><span class="card-title">每日練習</span>
+      <span class="card-sub" id="cnt-daily"></span>
+    </button>
     <button class="card" data-go="idioms">
       <span class="card-icon">📜</span><span class="card-title">成語</span>
       <span class="card-sub" id="cnt-idioms"></span>
@@ -38,6 +42,10 @@
     <button class="card" data-go="chars">
       <span class="card-icon">✍️</span><span class="card-title">字形辨正</span>
       <span class="card-sub" id="cnt-chars"></span>
+    </button>
+    <button class="card" data-go="reading">
+      <span class="card-icon">📖</span><span class="card-title">閱讀測驗</span>
+      <span class="card-sub" id="cnt-reading"></span>
     </button>
     <button class="card" data-go="write">
       <span class="card-icon">🖌️</span><span class="card-title">手寫練習</span>
@@ -63,10 +71,13 @@
   <div class="quiz-head">
     <button class="btn-ghost" id="quizExit">✕ 離開</button>
     <span id="quizProgress"></span>
+    <span id="quizCombo" class="q-combo"></span>
     <span id="quizScore"></span>
   </div>
+  <div class="qbar-track"><div id="quizBar" class="qbar"></div></div>
   <div class="quiz-card">
     <div id="quizTag" class="q-tag"></div>
+    <div id="quizPassage" class="q-passage hidden"></div>
     <div id="quizQuestion" class="q-text"></div>
     <div id="quizOptions" class="q-options"></div>
     <div id="quizFeedback" class="q-feedback hidden"></div>
@@ -147,6 +158,7 @@
 <script src="js/data/slang.js"></script>
 <script src="js/data/phonics.js"></script>
 <script src="js/data/chars.js"></script>
+<script src="js/data/reading.js"></script>
 <script src="js/app.js"></script>
 <script src="js/sync.js"></script>
 </body>

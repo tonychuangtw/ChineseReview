@@ -37,6 +37,54 @@ body {
 }
 .chip.active { background: var(--accent); border-color: var(--accent); }
 
+/* ===== 每日練習 / 閱讀 / 互動 ===== */
+.card-wide { grid-column: 1 / -1; }
+.card-daily { border-color: var(--accent); }
+.card-daily.daily-done { border-color: var(--good); }
+.q-passage {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.8rem; margin-bottom: 0.8rem; font-size: 0.92rem; line-height: 1.7;
+  white-space: pre-wrap; max-height: 40vh; overflow-y: auto;
+}
+.q-combo { color: #e0a13f; font-weight: 700; }
+.qbar-track { height: 4px; background: var(--panel2); border-radius: 2px; margin-bottom: 0.8rem; }
+.qbar { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+.q-img { display: block; max-width: 200px; width: 100%; border-radius: 10px; margin-top: 0.6rem; }
+.prog-h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
+.prog-hint { color: var(--dim); font-size: 0.85rem; margin-bottom: 0.6rem; }
+.daily-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
+.cal-cell {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.35rem 0; font-size: 1rem; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.cal-cell small { color: var(--dim); font-size: 0.65rem; }
+.cal-cell.done { border-color: var(--good); }
+.cal-cell.today { border-color: var(--accent); }
+.daily-detail {
+  margin-top: 0.8rem; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.8rem; font-size: 0.9rem; line-height: 1.7;
+}
+#toast {
+  position: fixed; bottom: calc(1.2rem + env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.5rem 1.2rem; font-size: 0.9rem;
+  opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none; z-index: 100;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.confetti {
+  position: fixed; top: -12px; width: 9px; height: 14px; z-index: 99;
+  border-radius: 2px; pointer-events: none;
+  animation: confetti-fall linear forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: 0.6; }
+}
+.q-opt:active { transform: scale(0.98); }
+.card:active { transform: scale(0.98); }
+
 /* ===== 雲端同步（Google 登入）===== */
 .sync-ui { display: flex; align-items: center; gap: 0.4rem; }
 .sync-chip {
