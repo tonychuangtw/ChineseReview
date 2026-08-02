@@ -31,3 +31,6 @@
 - 成語配圖：`node tools/gen-idiom-images.js --grades 1-6`（Gemini 2.5 Flash Image，金鑰在 ~/.gemini/.env），產 img/idioms/<id>.webp，前端自動載入、載不到自動隱藏
 - 2026-08-02 二輪擴充：年級改多選（state.grades 陣列，舊 grade/cumulative 自動遷移）；每日練習 25 題＋弱點加權（weakStrong）＋錯題到期混入；錯題排程 bumpWrongSchedule（1→3→7 天三關畢業）；寫作素材 js/data/writing.js；家長週報 tools/weekly-report.js（systemd：chinese-weekly-report.timer，週日 20:00 台北，讀 LanExamMock backend 的 progress.db，bot token 在 ~/.claude/channels/telegram-chinese/.env）
 - ⚠️ 題庫內容不可交給 subagent 量產（2026-08-02 四個 agent 全交假貨），加題一律逐條人工撰寫並跑雙測試
+- 單元學習：`buildUnits(DATA, grade)` 依 id 序決定性切單元（4成語+2俚語+4字音+4字形），過關狀態存 state.units["gX-uY"]；教學卡 view-lesson、列表 view-units
+- 錯題本規則（Tony 2026-08-02 定案）：答對任何一次即移除（removeWrong），答錯留著排隔天；不再用 1→3→7 三關制
+- 筆順動畫：js/vendor/hanzi-writer.min.js + strokes/uXXXX.json（來源 hanzi-writer-data，Arphic 授權見 strokes/README.md）；新增字形題後跑一次下載腳本補字（參考 git log f3972f1 的做法）；載不到的字自動隱藏面板
