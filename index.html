@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12141a">
+<title>中文複習 — 成語・俚語・字音・字形</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1 id="homeLink">中文複習</h1>
+  <div class="topbar-controls">
+    <button id="phonToggle" class="chip" title="切換注音/拼音">注音</button>
+    <select id="gradeSel" title="年級"></select>
+  </div>
+</header>
+
+<main>
+<!-- 首頁 -->
+<section id="view-home" class="view">
+  <div class="grade-row">
+    <label class="cum-label"><input type="checkbox" id="cumChk" checked> 含以下年級題目</label>
+  </div>
+  <div class="cards">
+    <button class="card" data-go="idioms">
+      <span class="card-icon">📜</span><span class="card-title">成語</span>
+      <span class="card-sub" id="cnt-idioms"></span>
+    </button>
+    <button class="card" data-go="slang">
+      <span class="card-icon">🗣️</span><span class="card-title">俚語諺語</span>
+      <span class="card-sub" id="cnt-slang"></span>
+    </button>
+    <button class="card" data-go="phonics">
+      <span class="card-icon">🔊</span><span class="card-title">字音辨正</span>
+      <span class="card-sub" id="cnt-phonics"></span>
+    </button>
+    <button class="card" data-go="chars">
+      <span class="card-icon">✍️</span><span class="card-title">字形辨正</span>
+      <span class="card-sub" id="cnt-chars"></span>
+    </button>
+    <button class="card" data-go="write">
+      <span class="card-icon">🖌️</span><span class="card-title">手寫練習</span>
+      <span class="card-sub">看注音寫國字</span>
+    </button>
+    <button class="card" data-go="flash">
+      <span class="card-icon">🗂️</span><span class="card-title">字卡複習</span>
+      <span class="card-sub" id="cnt-flash"></span>
+    </button>
+    <button class="card" data-go="wrongbook">
+      <span class="card-icon">📕</span><span class="card-title">錯題本</span>
+      <span class="card-sub" id="cnt-wrong"></span>
+    </button>
+    <button class="card" data-go="progress">
+      <span class="card-icon">📈</span><span class="card-title">學習進度</span>
+      <span class="card-sub" id="cnt-streak"></span>
+    </button>
+  </div>
+</section>
+
+<!-- 選擇題測驗 -->
+<section id="view-quiz" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="quizExit">✕ 離開</button>
+    <span id="quizProgress"></span>
+    <span id="quizScore"></span>
+  </div>
+  <div class="quiz-card">
+    <div id="quizTag" class="q-tag"></div>
+    <div id="quizQuestion" class="q-text"></div>
+    <div id="quizOptions" class="q-options"></div>
+    <div id="quizFeedback" class="q-feedback hidden"></div>
+    <button id="quizNext" class="btn-primary hidden">下一題</button>
+  </div>
+  <div id="quizResult" class="quiz-result hidden"></div>
+</section>
+
+<!-- 手寫練習 -->
+<section id="view-write" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="writeExit">✕ 離開</button>
+    <span id="writeProgress"></span>
+    <span id="writeScore"></span>
+  </div>
+  <div class="quiz-card">
+    <div id="writeTag" class="q-tag"></div>
+    <div id="writePrompt" class="q-text"></div>
+    <div class="canvas-wrap">
+      <canvas id="writeCanvas" width="280" height="280"></canvas>
+      <div id="writeAnswer" class="write-answer hidden"></div>
+    </div>
+    <div class="write-btns">
+      <button id="writeClear" class="btn-ghost">清除重寫</button>
+      <button id="writeReveal" class="btn-primary">顯示答案</button>
+    </div>
+    <div id="writeJudge" class="write-btns hidden">
+      <button id="writeRight" class="btn-good">✓ 我寫對了</button>
+      <button id="writeWrong" class="btn-bad">✗ 我寫錯了</button>
+    </div>
+    <div id="writeNote" class="q-feedback hidden"></div>
+  </div>
+  <div id="writeResult" class="quiz-result hidden"></div>
+</section>
+
+<!-- 字卡複習 -->
+<section id="view-flash" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="flashExit">✕ 離開</button>
+    <span id="flashInfo"></span>
+  </div>
+  <div id="flashEmpty" class="empty hidden">今天沒有到期的字卡 🎉<br><small>字卡採三盒間隔複習：盒1每天、盒2每2天、盒3每5天。答錯的選擇題會自動加入盒1。</small></div>
+  <div id="flashCard" class="flash-card">
+    <div id="flashFront" class="flash-face"></div>
+    <div id="flashBack" class="flash-face hidden"></div>
+  </div>
+  <div class="write-btns">
+    <button id="flashFlip" class="btn-primary">翻面</button>
+  </div>
+  <div id="flashJudge" class="write-btns hidden">
+    <button id="flashKnow" class="btn-good">✓ 記得</button>
+    <button id="flashForget" class="btn-bad">✗ 忘記</button>
+  </div>
+</section>
+
+<!-- 錯題本 -->
+<section id="view-wrongbook" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="wrongExit">✕ 返回</button>
+    <span>錯題本</span>
+    <button class="btn-ghost" id="wrongRetry">重練全部</button>
+  </div>
+  <div id="wrongList" class="wrong-list"></div>
+</section>
+
+<!-- 進度 -->
+<section id="view-progress" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="progExit">✕ 返回</button>
+    <span>學習進度</span>
+    <button class="btn-ghost" id="progReset">清除資料</button>
+  </div>
+  <div id="progBody" class="prog-body"></div>
+</section>
+</main>
+
+<script src="js/data/idioms.js"></script>
+<script src="js/data/slang.js"></script>
+<script src="js/data/phonics.js"></script>
+<script src="js/data/chars.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
