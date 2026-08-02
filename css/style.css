@@ -133,6 +133,22 @@ body {
 }
 .stroke-panel svg { background: #fff; border-radius: 12px; }
 
+/* ===== 錯題本管理 / 刷題進度 ===== */
+.wb-tools { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.wb-row { display: flex; align-items: center; gap: 0.5rem; }
+.wb-row b { flex: 1; }
+.wb-row input[type=checkbox] { width: 18px; height: 18px; }
+.wb-del {
+  background: none; border: 1px solid var(--border); color: var(--dim);
+  border-radius: 8px; width: 28px; height: 28px; cursor: pointer; flex-shrink: 0;
+}
+.wb-del:hover { color: var(--bad); border-color: var(--bad); }
+.wb-sub { display: block; color: var(--dim); }
+.chip.danger { border-color: var(--bad); color: var(--bad); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.drill-track { height: 6px; background: var(--panel2); border-radius: 3px; margin-top: 0.5rem; }
+.drill-bar { height: 100%; background: var(--accent); border-radius: 3px; }
+
 /* ===== 雲端同步（Google 登入）===== */
 .sync-ui { display: flex; align-items: center; gap: 0.4rem; }
 .sync-chip {

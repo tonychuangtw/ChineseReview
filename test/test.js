@@ -5,7 +5,7 @@ const path = require('path');
 
 global.window = {};
 const root = path.join(__dirname, '..');
-for (const f of ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing']) {
+for (const f of ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing', 'custom']) {
   eval(fs.readFileSync(path.join(root, 'js/data', f + '.js'), 'utf8'));
 }
 global.window.APP_DATA = window.APP_DATA;
@@ -31,8 +31,10 @@ ok(D.chars.length >= 120, `字形 ≥120（實際 ${D.chars.length}）`);
 for (const [cat, items] of Object.entries(D)) {
   const ids = new Set(items.map(i => i.id));
   ok(ids.size === items.length, `${cat} id 不重複`);
-  ok(items.every(i => i.grade >= 1 && i.grade <= 12), `${cat} grade 都在 1-12`);
+  if (cat !== 'custom') ok(items.every(i => i.grade >= 1 && i.grade <= 12), `${cat} grade 都在 1-12`);
 }
+ok(D.custom.every(c => c.q && Array.isArray(c.options) && c.options.length >= 2 && c.answer >= 0 && c.answer < c.options.length),
+  '自創題庫欄位合法（目前 ' + D.custom.length + ' 題）');
 ok(D.idioms.every(i => i.term && i.meaning && i.example && ZY_WORD.test(i.zhuyin) && i.pinyin),
   '成語欄位完整、注音格式正確');
 ok(D.slang.every(i => i.term && i.meaning && i.example && ['俚語', '諺語', '歇後語'].includes(i.kind)),
