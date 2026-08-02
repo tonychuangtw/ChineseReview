@@ -12,16 +12,15 @@
   <h1 id="homeLink">中文複習</h1>
   <div class="topbar-controls">
     <button id="phonToggle" class="chip" title="切換注音/拼音">注音</button>
-    <select id="gradeSel" title="年級"></select>
+    <button id="gradeBtn" class="chip" title="選擇年級（可多選）"></button>
   </div>
 </header>
+<div id="gradePanel" class="grade-panel hidden"></div>
 
 <main>
 <!-- 首頁 -->
 <section id="view-home" class="view">
-  <div class="grade-row">
-    <label class="cum-label"><input type="checkbox" id="cumChk" checked> 含以下年級題目</label>
-  </div>
+
   <div class="cards">
     <button class="card card-wide card-daily" data-go="daily">
       <span class="card-icon">📅</span><span class="card-title">每日練習</span>
@@ -54,6 +53,10 @@
     <button class="card" data-go="flash">
       <span class="card-icon">🗂️</span><span class="card-title">字卡複習</span>
       <span class="card-sub" id="cnt-flash"></span>
+    </button>
+    <button class="card" data-go="writing">
+      <span class="card-icon">🖋️</span><span class="card-title">寫作素材</span>
+      <span class="card-sub" id="cnt-writing"></span>
     </button>
     <button class="card" data-go="wrongbook">
       <span class="card-icon">📕</span><span class="card-title">錯題本</span>
@@ -143,6 +146,25 @@
   <div id="wrongList" class="wrong-list"></div>
 </section>
 
+<!-- 寫作素材 -->
+<section id="view-writing" class="view hidden">
+  <div class="quiz-head">
+    <button class="btn-ghost" id="writingExit">✕ 返回</button>
+    <span>寫作素材</span>
+    <span></span>
+  </div>
+  <div class="quiz-card">
+    <div id="wrTag" class="q-tag"></div>
+    <div id="wrQuote" class="wr-quote"></div>
+    <div id="wrSrc" class="wr-src"></div>
+    <div id="wrTip" class="q-feedback"></div>
+    <div id="wrPrompt" class="q-text"></div>
+    <textarea id="wrInput" class="wr-input" rows="4" placeholder="用今天這句話的句式或精神，寫一段自己的文字……"></textarea>
+    <button id="wrSave" class="btn-primary">儲存今日仿寫</button>
+  </div>
+  <div id="wrHistory" class="wrong-list"></div>
+</section>
+
 <!-- 進度 -->
 <section id="view-progress" class="view hidden">
   <div class="quiz-head">
@@ -159,6 +181,7 @@
 <script src="js/data/phonics.js"></script>
 <script src="js/data/chars.js"></script>
 <script src="js/data/reading.js"></script>
+<script src="js/data/writing.js"></script>
 <script src="js/app.js"></script>
 <script src="js/sync.js"></script>
 </body>

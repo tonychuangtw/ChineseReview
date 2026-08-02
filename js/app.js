@@ -4,7 +4,7 @@
 
   var W = (typeof window !== 'undefined') ? window : this;
   var DATA = W.APP_DATA || {};
-  ['idioms', 'slang', 'phonics', 'chars', 'reading'].forEach(function (k) {
+  ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing'].forEach(function (k) {
     if (!Array.isArray(DATA[k])) DATA[k] = [];
   });
 
@@ -35,6 +35,25 @@
     return pool.filter(function (it) {
       return cumulative ? it.grade <= grade : it.grade === grade;
     });
+  }
+
+  // 多選年級（grades 為 1-12 的陣列）
+  function filterByGrades(pool, grades) {
+    return pool.filter(function (it) { return grades.indexOf(it.grade) >= 0; });
+  }
+
+  // 年級組合顯示：連續區間縮寫，如 [1,2,3,4] → 小一–小四
+  function gradesLabel(grades) {
+    if (!grades.length) return '未選年級';
+    if (grades.length === 12) return '全部年級';
+    var g = grades.slice().sort(function (a, b) { return a - b; });
+    var parts = [], start = g[0], prev = g[0];
+    for (var i = 1; i <= g.length; i++) {
+      if (i < g.length && g[i] === prev + 1) { prev = g[i]; continue; }
+      parts.push(start === prev ? gradeLabel(start) : gradeLabel(start) + '–' + gradeLabel(prev));
+      if (i < g.length) { start = g[i]; prev = g[i]; }
+    }
+    return parts.join('、');
   }
 
   function gradeLabel(g) {
@@ -168,24 +187,61 @@
     return a.slice(0, n);
   }
 
-  // 每日練習組卷：回傳 entry 清單 [{t, id, syn?, qi?}]，同一種子必產出同一組
-  function composeDaily(data, grade, cumulative, seed) {
+  // 每日練習組卷：回傳 entry 清單 [{t, id, syn?, qi?}]，同一種子必產出同一組。
+  // counts 可覆寫各類題數（弱點加權用），預設共 22 題 + 1 篇閱讀題組（2-3 題）≈ 25 題。
+  function composeDaily(data, grades, seed, counts) {
+    var c = counts || {};
+    var n = {
+      idioms: c.idioms != null ? c.idioms : 6,
+      slang: c.slang != null ? c.slang : 4,
+      phonics: c.phonics != null ? c.phonics : 6,
+      chars: c.chars != null ? c.chars : 6
+    };
     var rng = rngFromString(seed);
     var entries = [];
-    function poolOf(cat) { return filterByGrade(data[cat] || [], grade, cumulative); }
-    var idi = poolOf('idioms');
-    seededPick(idi, 3, rng).forEach(function (it, i) {
-      // 有同義詞資料的第一題出同義題
-      entries.push({ t: 'idioms', id: it.id, syn: i === 0 && (it.syn || []).length > 0 });
+    function poolOf(cat) { return filterByGrades(data[cat] || [], grades); }
+    seededPick(poolOf('idioms'), n.idioms, rng).forEach(function (it, i) {
+      // 前兩題若有同義詞資料就出同義題
+      entries.push({ t: 'idioms', id: it.id, syn: i < 2 && (it.syn || []).length > 0 });
     });
-    seededPick(poolOf('slang'), 2, rng).forEach(function (it) { entries.push({ t: 'slang', id: it.id }); });
-    seededPick(poolOf('phonics'), 3, rng).forEach(function (it) { entries.push({ t: 'phonics', id: it.id }); });
-    seededPick(poolOf('chars'), 3, rng).forEach(function (it) { entries.push({ t: 'chars', id: it.id }); });
+    seededPick(poolOf('slang'), n.slang, rng).forEach(function (it) { entries.push({ t: 'slang', id: it.id }); });
+    seededPick(poolOf('phonics'), n.phonics, rng).forEach(function (it) { entries.push({ t: 'phonics', id: it.id }); });
+    seededPick(poolOf('chars'), n.chars, rng).forEach(function (it) { entries.push({ t: 'chars', id: it.id }); });
     var reads = seededPick(poolOf('reading'), 1, rng);
     reads.forEach(function (r) {
       for (var qi = 0; qi < r.questions.length; qi++) entries.push({ t: 'reading', id: r.id, qi: qi });
     });
     return entries;
+  }
+
+  // 弱點分析：由累計統計找出正確率最低與最高的類別（各類至少答過 10 題才納入）
+  function weakStrong(stats) {
+    var cats = ['idioms', 'slang', 'phonics', 'chars'];
+    var rated = cats.map(function (c) {
+      var s = stats[c] || { n: 0, ok: 0 };
+      return { cat: c, n: s.n, rate: s.n ? s.ok / s.n : null };
+    }).filter(function (r) { return r.n >= 10; });
+    if (rated.length < 2) return null;
+    rated.sort(function (a, b) { return a.rate - b.rate; });
+    if (rated[rated.length - 1].rate - rated[0].rate < 0.1) return null; // 差距小就不加權
+    return { weak: rated[0].cat, strong: rated[rated.length - 1].cat, weakRate: rated[0].rate };
+  }
+
+  // 錯題間隔重考：答對升級（1→3→7 天），三級後畢業；答錯回到隔天重考
+  function bumpWrongSchedule(w, ok, todayStr) {
+    var days = [1, 3, 7];
+    if (!ok) { w.box = 1; w.due = nextDueDays(todayStr, 1); return 'reset'; }
+    var box = (w.box || 1) + 1;
+    if (box > 3) return 'graduate';
+    w.box = box;
+    w.due = nextDueDays(todayStr, days[box - 1]);
+    return 'up';
+  }
+
+  function nextDueDays(todayStr, days) {
+    var d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return fmtDate(d);
   }
 
   // 一律用本地日期（toISOString 是 UTC，台灣早上 8 點前會差一天）
@@ -215,10 +271,12 @@
 
   W.PURE = {
     shuffle: shuffle, pickOthers: pickOthers, filterByGrade: filterByGrade,
+    filterByGrades: filterByGrades, gradesLabel: gradesLabel,
     buildIdiomQ: buildIdiomQ, buildSlangQ: buildSlangQ,
     buildPhonicsQ: buildPhonicsQ, buildCharsQ: buildCharsQ,
     buildSynQ: buildSynQ, buildReadingQ: buildReadingQ,
     rngFromString: rngFromString, seededPick: seededPick, composeDaily: composeDaily,
+    weakStrong: weakStrong, bumpWrongSchedule: bumpWrongSchedule,
     dailyStreak: dailyStreak,
     nextDue: nextDue, gradeLabel: gradeLabel
   };
@@ -230,14 +288,26 @@
   var LS_KEY = 'chinese-review-v1';
   var state = load();
   function load() {
-    try {
-      var s = JSON.parse(localStorage.getItem(LS_KEY));
-      if (s && typeof s === 'object') return s;
-    } catch (e) {}
-    return {
-      phon: 'zhuyin', grade: 5, cumulative: true,
-      stats: {}, streak: { last: '', days: 0 }, wrong: [], leitner: {}
-    };
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) {}
+    if (!s || typeof s !== 'object') {
+      s = {
+        phon: 'zhuyin', grades: [1, 2, 3, 4, 5],
+        stats: {}, streak: { last: '', days: 0 }, wrong: [], leitner: {}
+      };
+    }
+    // 舊版單選年級 → 多選遷移
+    if (!Array.isArray(s.grades) || !s.grades.length) {
+      var g = s.grade || 5;
+      s.grades = [];
+      if (s.cumulative === false) s.grades = [g];
+      else for (var i = 1; i <= g; i++) s.grades.push(i);
+    }
+    // 錯題排程遷移
+    (s.wrong || []).forEach(function (w) {
+      if (!w.box) { w.box = 1; w.due = w.due || fmtDate(new Date()); }
+    });
+    return s;
   }
   function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
   function today() { return fmtDate(new Date()); }
@@ -257,12 +327,29 @@
 
   function addWrong(type, id) {
     var hit = state.wrong.find(function (w) { return w.t === type && w.id === id; });
-    if (hit) hit.n++;
-    else state.wrong.push({ t: type, id: id, n: 1 });
+    if (hit) { hit.n++; hit.box = 1; hit.due = nextDueDays(today(), 1); }
+    else state.wrong.push({ t: type, id: id, n: 1, box: 1, due: nextDueDays(today(), 1) });
     if ((type === 'idioms' || type === 'slang') && !state.leitner[id]) {
       state.leitner[id] = { box: 1, due: today() };
     }
     save();
+  }
+
+  function updateWrongSchedule(t, id, ok) {
+    var w = state.wrong.find(function (x) { return x.t === t && x.id === id; });
+    if (!w) return;
+    var r = bumpWrongSchedule(w, ok, today());
+    if (r === 'graduate') {
+      state.wrong = state.wrong.filter(function (x) { return !(x.t === t && x.id === id); });
+      setStatusToast('🎓 「' + labelOf(t, id) + '」已從錯題本畢業');
+    }
+    save();
+  }
+
+  function labelOf(t, id) {
+    var it = findItem(t, id);
+    if (!it) return id;
+    return it.term || (it.word ? it.word : it.answer || it.title || id);
   }
 
   function findItem(type, id) {
@@ -271,7 +358,7 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['home', 'quiz', 'write', 'flash', 'wrongbook', 'progress'];
+  var views = ['home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
@@ -282,7 +369,7 @@
 
   /* ---------- 首頁 ---------- */
 
-  function pool(cat) { return filterByGrade(DATA[cat], state.grade, state.cumulative); }
+  function pool(cat) { return filterByGrades(DATA[cat], state.grades); }
 
   function renderHome() {
     $('cnt-idioms').textContent = pool('idioms').length + ' 題可練';
@@ -299,37 +386,69 @@
     $('cnt-wrong').textContent = state.wrong.length + ' 題待複習';
     var ds = dailyStreak(state.daily || {}, today());
     $('cnt-streak').textContent = ds ? '每日練習連續 ' + ds + ' 天' : '開始累積吧';
+    var dueN = state.wrong.filter(function (w) { return (w.due || '') <= today(); }).length;
+    if (dueN) $('cnt-wrong').textContent = state.wrong.length + ' 題待複習 · ' + dueN + ' 題到期';
+    $('cnt-writing').textContent = '每日一句 · 仿寫';
     $('phonToggle').textContent = state.phon === 'zhuyin' ? '注音' : '拼音';
-    $('cumChk').checked = state.cumulative;
-    $('gradeSel').value = String(state.grade);
+    renderGradeBtn();
   }
 
-  // 年級下拉
-  (function initGradeSel() {
-    var sel = $('gradeSel');
-    var groups = [['國小', 1, 6], ['國中', 7, 9], ['高中', 10, 12]];
-    groups.forEach(function (g) {
-      var og = document.createElement('optgroup');
-      og.label = g[0];
-      for (var i = g[1]; i <= g[2]; i++) {
-        var op = document.createElement('option');
-        op.value = i; op.textContent = gradeLabel(i);
-        og.appendChild(op);
-      }
-      sel.appendChild(og);
+  // 年級多選面板
+  function renderGradeBtn() { $('gradeBtn').textContent = gradesLabel(state.grades) + ' ▾'; }
+  (function initGradePanel() {
+    var panel = $('gradePanel');
+    var quick = [['全部', 1, 12], ['國小', 1, 6], ['國中', 7, 9], ['高中', 10, 12]];
+    var qrow = document.createElement('div');
+    qrow.className = 'gp-quick';
+    quick.forEach(function (q) {
+      var b = document.createElement('button');
+      b.className = 'chip'; b.type = 'button'; b.textContent = q[0];
+      b.addEventListener('click', function () {
+        state.grades = [];
+        for (var i = q[1]; i <= q[2]; i++) state.grades.push(i);
+        save(); syncChecks(); renderHome();
+      });
+      qrow.appendChild(b);
     });
-    sel.value = String(state.grade);
-    sel.addEventListener('change', function () {
-      state.grade = parseInt(sel.value, 10); save(); renderHome();
+    panel.appendChild(qrow);
+    var grid = document.createElement('div');
+    grid.className = 'gp-grid';
+    var boxes = [];
+    for (var g = 1; g <= 12; g++) {
+      (function (g) {
+        var lab = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.value = g;
+        cb.addEventListener('change', function () {
+          var set = state.grades.filter(function (x) { return x !== g; });
+          if (cb.checked) set.push(g);
+          if (!set.length) { cb.checked = true; return; } // 至少留一個
+          state.grades = set.sort(function (a, b) { return a - b; });
+          save(); renderHome();
+        });
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(gradeLabel(g)));
+        grid.appendChild(lab);
+        boxes.push(cb);
+      })(g);
+    }
+    panel.appendChild(grid);
+    function syncChecks() {
+      boxes.forEach(function (cb) { cb.checked = state.grades.indexOf(parseInt(cb.value, 10)) >= 0; });
+    }
+    syncChecks();
+    $('gradeBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      syncChecks();
+      panel.classList.toggle('hidden');
     });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { panel.classList.add('hidden'); });
   })();
 
   $('phonToggle').addEventListener('click', function () {
     state.phon = state.phon === 'zhuyin' ? 'pinyin' : 'zhuyin';
     save(); renderHome();
-  });
-  $('cumChk').addEventListener('change', function () {
-    state.cumulative = $('cumChk').checked; save(); renderHome();
   });
   $('homeLink').addEventListener('click', function () { show('home'); });
 
@@ -339,6 +458,7 @@
       if (go === 'idioms' || go === 'slang' || go === 'phonics' || go === 'chars') startQuiz(go, null);
       else if (go === 'daily') startDaily();
       else if (go === 'reading') startReading();
+      else if (go === 'writing') showWriting();
       else if (go === 'write') startWrite();
       else if (go === 'flash') startFlash();
       else if (go === 'wrongbook') showWrongbook();
@@ -415,6 +535,7 @@
     $('quizScore').textContent = quiz.mode === 'daily' ? '' : '得分 ' + quiz.score;
     $('quizBar').style.width = Math.round(100 * quiz.i / quiz.entries.length) + '%';
     $('quizTag').textContent = (quiz.mode === 'daily' ? '📅 每日練習 · ' : '') +
+      (e.rev ? '🔁 錯題複習 · ' : '') +
       CAT_NAME[q.type] + ' · ' + gradeLabel(q.item.grade);
     var pas = $('quizPassage');
     if (q.passage) { pas.textContent = q.passage; pas.classList.remove('hidden'); }
@@ -457,7 +578,10 @@
     $('quizCombo').textContent = quiz.combo >= 3 ? '🔥' + quiz.combo : '';
     // 每日練習：只記第一次遇到這題的結果
     var k = entryKey(e);
-    if (quiz.firstTry[k] === undefined) quiz.firstTry[k] = ok;
+    var firstEncounter = quiz.firstTry[k] === undefined;
+    if (firstEncounter) quiz.firstTry[k] = ok;
+    // 錯題間隔重考：複習題第一次作答結果決定升級或重排
+    if (firstEncounter && (e.rev || quiz.mode === 'retry')) updateWrongSchedule(q.type, q.item.id, ok);
     if (!ok) quiz.wrongNow.push(e);
     bumpStat(q.type, ok);
     if (!ok && q.type !== 'reading' && quiz.round === 1) addWrong(q.type, q.item.id);
@@ -522,11 +646,22 @@
   function startDaily() {
     var rec = dailyRec();
     if (rec && rec.done) { showDailySummary(rec); return; }
-    var entries = composeDaily(DATA, state.grade, state.cumulative,
-      today() + '|' + state.grade + '|' + (state.cumulative ? 1 : 0));
-    if (entries.length < 5) { alert('這個年級題目不足，請勾選「含以下年級」。'); return; }
+    // 弱點加權：正確率最低的類別 +2 題、最高的 -2 題
+    var ws = weakStrong(state.stats);
+    var counts = { idioms: 6, slang: 4, phonics: 6, chars: 6 };
+    if (ws) {
+      counts[ws.weak] += 2;
+      if (counts[ws.strong] > 3) counts[ws.strong] -= 2;
+    }
+    var entries = composeDaily(DATA, state.grades, today() + '|' + state.grades.join(','), counts);
+    if (entries.length < 5) { alert('所選年級題目不足，請多勾幾個年級。'); return; }
+    // 錯題到期複習：最多 3 題混入今日練習
+    var t = today();
+    state.wrong.filter(function (w) { return (w.due || t) <= t; }).slice(0, 3)
+      .forEach(function (w) { entries.push({ t: w.t, id: w.id, rev: true }); });
     beginQuiz(entries, 'daily', null);
     quiz.total = entries.length;
+    quiz.weakBoost = ws ? ws.weak : null;
   }
 
   function completeDaily() {
@@ -541,7 +676,7 @@
     });
     var ms = Date.now() - quiz.startedAt;
     state.daily[today()] = {
-      done: true, grade: state.grade, cum: state.cumulative,
+      done: true, grade: state.grades[state.grades.length - 1], gradesTxt: gradesLabel(state.grades),
       total: total, firstOk: firstOk, rounds: quiz.round,
       ms: ms, finishedAt: Date.now(), wrong: wrongList
     };
@@ -789,8 +924,10 @@
       var div = document.createElement('div');
       div.className = 'wrong-item';
       var label = it.term || (it.word ? it.word + '（' + it.target + '）' : it.answer + '：' + it.sentence);
-      div.innerHTML = '<b>' + label + '</b> <small>' + CAT_NAME[w.t] + ' · 錯 ' + w.n + ' 次</small><br><small>' +
-        (it.meaning || it.note || '') + '</small>';
+      var dueTxt = (w.due || '') <= today() ? '<span class="due-now">今日到期</span>' :
+        '下次 ' + (w.due || '—') + '（第' + (w.box || 1) + '關/3）';
+      div.innerHTML = '<b>' + label + '</b> <small>' + CAT_NAME[w.t] + ' · 錯 ' + w.n + ' 次 · ' + dueTxt +
+        '</small><br><small>' + (it.meaning || it.note || '') + '</small>';
       box.appendChild(div);
     });
   }
@@ -825,6 +962,17 @@
     Object.keys(state.leitner).forEach(function (id) { boxes[state.leitner[id].box - 1]++; });
     extra.innerHTML = '<b>字卡</b><span>盒1×' + boxes[0] + ' 盒2×' + boxes[1] + ' 盒3×' + boxes[2] + '</span>';
     body.appendChild(extra);
+    // 弱點分析
+    var ws = weakStrong(state.stats);
+    var weakDiv = document.createElement('div');
+    weakDiv.className = 'prog-hint';
+    if (ws) {
+      weakDiv.textContent = '📊 弱點分析：「' + CAT_NAME[ws.weak] + '」正確率最低（' +
+        Math.round(ws.weakRate * 100) + '%），每日練習已自動對它加重出題。';
+    } else {
+      weakDiv.textContent = '📊 弱點分析：各類作答量還不夠或表現平均，累積更多作答後會自動對最弱類別加重出題。';
+    }
+    body.appendChild(weakDiv);
     renderDailyCal(body);
   }
 
@@ -876,7 +1024,7 @@
     var mins = Math.max(1, Math.round(rec.ms / 60000));
     var fin = new Date(rec.finishedAt);
     var pct = rec.total ? Math.round(100 * rec.firstOk / rec.total) : 0;
-    var html = '<b>' + key + '</b>（' + gradeLabel(rec.grade) + '）<br>' +
+    var html = '<b>' + key + '</b>（' + (rec.gradesTxt || gradeLabel(rec.grade)) + '）<br>' +
       '✅ 完成於 ' + ('0' + fin.getHours()).slice(-2) + ':' + ('0' + fin.getMinutes()).slice(-2) +
       ' · 用時約 ' + mins + ' 分鐘<br>' +
       '第一次答對 ' + rec.firstOk + ' / ' + rec.total + '（' + pct + '%）· 錯題重做 ' + (rec.rounds - 1) + ' 輪後全對';
@@ -900,6 +1048,59 @@
     }
   });
   $('progExit').addEventListener('click', function () { show('home'); });
+
+  /* ---------- 寫作素材（每日一句 + 仿寫） ---------- */
+
+  function showWriting() {
+    show('writing');
+    var poolW = filterByGrades(DATA.writing, state.grades);
+    if (!poolW.length) poolW = DATA.writing;
+    if (!poolW.length) { alert('素材庫載入失敗'); return; }
+    var it = seededPick(poolW, 1, rngFromString(today() + '|writing'))[0];
+    $('wrTag').textContent = '今日素材 · ' + today();
+    $('wrQuote').textContent = '「' + it.quote + '」';
+    $('wrSrc').textContent = '—— ' + it.src;
+    $('wrTip').textContent = '💡 怎麼用：' + it.tip;
+    $('wrTip').className = 'q-feedback';
+    $('wrPrompt').textContent = '✍️ 仿寫練習：' + it.prompt;
+    state.writingLog = state.writingLog || {};
+    var saved = state.writingLog[today()];
+    $('wrInput').value = saved ? saved.text : '';
+    renderWrHistory();
+    $('wrSave').onclick = function () {
+      var text = $('wrInput').value.trim();
+      if (!text) { setStatusToast('先寫點內容再儲存'); return; }
+      state.writingLog[today()] = { id: it.id, quote: it.quote, text: text, ts: Date.now() };
+      save();
+      setStatusToast('✓ 已儲存，家長檢視也看得到');
+      renderWrHistory();
+    };
+  }
+
+  function renderWrHistory() {
+    var box = $('wrHistory');
+    box.innerHTML = '';
+    var log = state.writingLog || {};
+    var dates = Object.keys(log).sort().reverse().slice(0, 7);
+    if (!dates.length) return;
+    var h = document.createElement('h3');
+    h.className = 'prog-h3';
+    h.textContent = '最近的仿寫';
+    box.appendChild(h);
+    dates.forEach(function (d) {
+      var div = document.createElement('div');
+      div.className = 'wrong-item';
+      var meta = document.createElement('small');
+      meta.textContent = d + ' · 「' + log[d].quote.slice(0, 14) + '…」';
+      var body = document.createElement('div');
+      body.textContent = log[d].text;
+      div.appendChild(meta);
+      div.appendChild(body);
+      box.appendChild(div);
+    });
+  }
+
+  $('writingExit').addEventListener('click', function () { show('home'); });
 
   /* ---------- 啟動 ---------- */
   renderHome();

@@ -85,6 +85,28 @@ body {
 .q-opt:active { transform: scale(0.98); }
 .card:active { transform: scale(0.98); }
 
+/* ===== 年級多選面板 ===== */
+.grade-panel {
+  position: fixed; top: 3.4rem; right: 0.8rem; z-index: 30;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.8rem; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 320px;
+}
+.gp-quick { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.gp-quick .chip { padding: 0.25rem 0.7rem; font-size: 0.82rem; }
+.gp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem 0.8rem; }
+.gp-grid label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; }
+
+/* ===== 寫作素材 ===== */
+.wr-quote { font-size: 1.15rem; line-height: 1.8; margin-bottom: 0.3rem; }
+.wr-src { color: var(--dim); font-size: 0.85rem; text-align: right; margin-bottom: 0.8rem; }
+.wr-input {
+  width: 100%; background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.7rem; font-size: 0.95rem; line-height: 1.7; font-family: inherit;
+  margin: 0.6rem 0; resize: vertical;
+}
+.due-now { color: #e0a13f; font-weight: 700; }
+
 /* ===== 雲端同步（Google 登入）===== */
 .sync-ui { display: flex; align-items: center; gap: 0.4rem; }
 .sync-chip {

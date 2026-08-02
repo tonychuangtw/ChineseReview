@@ -5,7 +5,7 @@ const path = require('path');
 
 global.window = {};
 const root = path.join(__dirname, '..');
-for (const f of ['idioms', 'slang', 'phonics', 'chars', 'reading']) {
+for (const f of ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing']) {
   eval(fs.readFileSync(path.join(root, 'js/data', f + '.js'), 'utf8'));
 }
 global.window.APP_DATA = window.APP_DATA;
@@ -105,16 +105,36 @@ console.log('同義成語');
 
 console.log('每日練習');
 {
-  const a = PURE.composeDaily(D, 5, true, '2026-08-02|5|1');
-  const b = PURE.composeDaily(D, 5, true, '2026-08-02|5|1');
-  const c = PURE.composeDaily(D, 5, true, '2026-08-03|5|1');
+  const G = [1, 2, 3, 4, 5];
+  const a = PURE.composeDaily(D, G, '2026-08-02|x');
+  const b = PURE.composeDaily(D, G, '2026-08-02|x');
+  const c = PURE.composeDaily(D, G, '2026-08-03|x');
   ok(JSON.stringify(a) === JSON.stringify(b), '同種子組卷結果一致');
   ok(JSON.stringify(a) !== JSON.stringify(c), '不同日期組卷不同');
-  ok(a.length >= 11, `組卷題數 ≥11（實際 ${a.length}）`);
+  ok(a.length >= 22, `組卷題數 ≥22（實際 ${a.length}）`);
   const cats = new Set(a.map(e => e.t));
   ok(cats.has('idioms') && cats.has('slang') && cats.has('phonics') && cats.has('chars'), '組卷涵蓋四大類');
+  const w = PURE.composeDaily(D, G, '2026-08-02|x', { idioms: 8, chars: 4 });
+  ok(w.filter(e => e.t === 'idioms').length === 8 && w.filter(e => e.t === 'chars').length === 4, '弱點加權可調各類題數');
   ok(PURE.dailyStreak({ '2026-08-01': { done: true }, '2026-08-02': { done: true } }, '2026-08-02') === 2, '連續天數計算（今天已做）');
   ok(PURE.dailyStreak({ '2026-08-01': { done: true } }, '2026-08-02') === 1, '連續天數計算（今天未做從昨天回數）');
+}
+
+console.log('多選年級 / 弱點 / 錯題排程 / 寫作素材');
+{
+  ok(PURE.filterByGrades(D.idioms, [3, 7]).every(i => i.grade === 3 || i.grade === 7), '多選年級過濾正確');
+  ok(PURE.gradesLabel([1, 2, 3, 4]) === '小一–小四', '年級標籤連續縮寫');
+  ok(PURE.gradesLabel([1, 2, 7]) === '小一–小二、國一', '年級標籤混合區間');
+  const ws = PURE.weakStrong({ idioms: { n: 20, ok: 10 }, chars: { n: 20, ok: 19 } });
+  ok(ws && ws.weak === 'idioms' && ws.strong === 'chars', '弱點分析找出最弱/最強');
+  ok(PURE.weakStrong({ idioms: { n: 5, ok: 1 } }) === null, '樣本不足不加權');
+  const w1 = { box: 1, due: '2026-08-02' };
+  ok(PURE.bumpWrongSchedule(w1, true, '2026-08-02') === 'up' && w1.box === 2 && w1.due === '2026-08-05', '錯題答對升級 +3 天');
+  ok(PURE.bumpWrongSchedule(w1, true, '2026-08-05') === 'up' && w1.box === 3 && w1.due === '2026-08-12', '再答對 +7 天');
+  ok(PURE.bumpWrongSchedule(w1, true, '2026-08-12') === 'graduate', '三關後畢業');
+  ok(PURE.bumpWrongSchedule(w1, false, '2026-08-12') === 'reset' && w1.box === 1, '答錯重排隔天');
+  ok(D.writing.length >= 50, `寫作素材 ≥50（實際 ${D.writing.length}）`);
+  ok(D.writing.every(w => w.quote && w.src && w.tip && w.prompt && w.grade >= 1 && w.grade <= 12), '寫作素材欄位完整');
 }
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
