@@ -35,4 +35,5 @@
 - 自創題庫流程：Tony/老婆把 Word 題庫傳到這條 Telegram → 用 python-docx 或 pandoc 抽文字 → 轉成 js/data/custom.js 條目（id x 開頭連號、tag 標範圍如「五上月考1」、answer 為索引）→ 跑 test → commit push。答案不明的題要回問，不可用猜的
 - 錯題本保留制（2026-08-02 二次定案，推翻同日稍早的「答對即移除」）：答對記連對次數並延後 due（3→7→14 天），只有手動刪除（單刪/批刪）會移除；「用猜的」按鈕會把答對的題也 addWrong
 - 依序刷題進度存 state.drillPos[cat|grades]，自創題庫 key 為 'custom'
+- 內容擴充 roadmap（Tony 2026-08-02 定案，每日分批）：閱讀 54→102 篇（小學各8/國中各10/高中各8，優先）；成語 800→1000；字音 420→600；字形 400→600；俚語 320→400；成語 wordExp 逐字解析從小二往上補到全 800 條（小一已完成）；配圖目標全 800 條。動畫暫緩（成本高，Tony 同意先圖+逐字解析）
 - 筆順動畫：js/vendor/hanzi-writer.min.js + strokes/uXXXX.json（來源 hanzi-writer-data，Arphic 授權見 strokes/README.md）；新增字形題後跑一次下載腳本補字（參考 git log f3972f1 的做法）；載不到的字自動隱藏面板
