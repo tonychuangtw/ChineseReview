@@ -36,6 +36,21 @@ body {
   padding: 0.35rem 0.9rem; font-size: 0.9rem; cursor: pointer;
 }
 .chip.active { background: var(--accent); border-color: var(--accent); }
+
+/* ===== 雲端同步（Google 登入）===== */
+.sync-ui { display: flex; align-items: center; gap: 0.4rem; }
+.sync-chip {
+  width: 34px; height: 34px; padding: 0;
+  border-radius: 50%; font-weight: 700;
+}
+.sync-status { font-size: 0.72rem; color: var(--dim); }
+.sync-login-wrap { position: relative; overflow: hidden; border-radius: 999px; }
+/* 官方 GIS 按鈕透明覆蓋在自訂按鈕上，點擊落在真按鈕 */
+.gsi-slot {
+  position: absolute; inset: 0; opacity: .0001;
+  display: flex; align-items: center; justify-content: center;
+}
+.gsi-slot > div { transform: scale(2.2); transform-origin: center; }
 #gradeSel {
   background: var(--panel2); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px;
