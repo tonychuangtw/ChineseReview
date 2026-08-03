@@ -32,7 +32,18 @@
 - 2026-08-02 二輪擴充：年級改多選（state.grades 陣列，舊 grade/cumulative 自動遷移）；每日練習 25 題＋弱點加權（weakStrong）＋錯題到期混入；錯題排程 bumpWrongSchedule（1→3→7 天三關畢業）；寫作素材 js/data/writing.js；家長週報 tools/weekly-report.js（systemd：chinese-weekly-report.timer，週日 20:00 台北，讀 LanExamMock backend 的 progress.db，bot token 在 ~/.claude/channels/telegram-chinese/.env）
 - ⚠️ 題庫內容不可交給 subagent 量產（2026-08-02 四個 agent 全交假貨），加題一律逐條人工撰寫並跑雙測試
 - 單元學習：`buildUnits(DATA, grade)` 依 id 序決定性切單元（4成語+2俚語+4字音+4字形），過關狀態存 state.units["gX-uY"]；教學卡 view-lesson、列表 view-units
-- 自創題庫流程：Tony/老婆把 Word 題庫傳到這條 Telegram → 用 python-docx 或 pandoc 抽文字 → 轉成 js/data/custom.js 條目（id x 開頭連號、tag 標範圍如「五上月考1」、answer 為索引）→ 跑 test → commit push。答案不明的題要回問，不可用猜的
+- 自創題庫轉檔規格（2026-08-03 Tony 定案，之後國中/高中每課一律照此模式）：
+  1. **抽文字**：舊版 .doc 用 `python3 tools/doc-extract.py <in.doc> <out.txt>`（自製 OLE+piece table 解析器，免外部套件）；多檔常有重複，以「編號：」去重
+  2. **解析題目**：scratchpad parse_items.py 模式切出 {q,ans,exp,num,難易度,出處}；原檔「解析：」欄位**一字不動保留**在 exp 最前（僅 à→→ 正規化）
+  3. **機械轉換**：四選一單選直接轉；閱讀題組拆子題（文章附題目前）；配對題（參考選項Ａ-Ｊ/甲乙丙）逐格拆單題
+  4. **手工轉換**（不可交 subagent）：寫國字/寫注音/注釋/改錯字/填空/翻譯 → 逐題自撰誘答選項；翻譯題自撰似是而非誤譯
+  5. **解析規格**（全題必附，測試把關零缺漏）：
+     - 字音/字形類：原解析＋「📚 注音比較」＋「國字拆解與造字原因」（部首聲符辨析、無此音標示）
+     - 成語類：原解析＋「📚 典故與成語意思」（出處考證，寧缺勿錯）＋各選項成語意思
+     - 其他類（注釋/翻譯/常識/配對）：解析含正解說明＋各選項字義/詞義
+  6. **欄位**：id x 連號、book（冊如"八上"）、lesson（如"第2課"）、tag（課名）、diff（易/中/難，取原檔難易度）、qtype（字音/字形/成語/閱讀/配對/解釋/常識/文意/翻譯/綜合）、answer 為索引
+  7. **驗收**：原題編號零漏轉盤點 → `node test/test.js` 全過 → commit push → 回報 Tony 題數統計
+  - 答案不明的題要回問，不可用猜的；批次進行、每批 commit 保進度
 - 錯題本保留制（2026-08-02 二次定案，推翻同日稍早的「答對即移除」）：答對記連對次數並延後 due（3→7→14 天），只有手動刪除（單刪/批刪）會移除；「用猜的」按鈕會把答對的題也 addWrong
 - 依序刷題進度存 state.drillPos[cat|grades]，自創題庫 key 為 'custom'
 - 內容擴充 roadmap（Tony 2026-08-02 定案，每日分批）：閱讀 54→102 篇（小學各8/國中各10/高中各8，優先）；成語 800→1000；字音 420→600；字形 400→600；俚語 320→400；成語 wordExp 逐字解析從小二往上補到全 800 條（小一已完成）；配圖目標全 800 條。動畫暫緩（成本高，Tony 同意先圖+逐字解析）
