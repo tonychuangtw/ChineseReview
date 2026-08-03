@@ -168,6 +168,10 @@ console.log('全科架構 / 自創分冊分課 / 解析強化');
   ok(dq.explain.indexOf('典故與成語意思') >= 0, '典故解析會出現在答題回饋');
   const dq2 = PURE.buildIdiomQ(D.idioms.find(i => i.id === 'i001'), D.idioms);
   ok(dq2.explain.indexOf('注音比較') >= 0, '沒寫 deep 的成語也自動有注音比較');
+  for (const k of ['idioms', 'phonics', 'chars']) {
+    const n = D[k].filter(i => i.deep && i.deep.length >= 30).length;
+    ok(n === D[k].length, `${k} 深度解析全數覆蓋（${n}/${D[k].length}）`);
+  }
 }
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
