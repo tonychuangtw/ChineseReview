@@ -602,6 +602,50 @@
   $('homeLink').addEventListener('click', function () { show('home'); });
   $('subjectBtn').addEventListener('click', function () { show('subject'); });
 
+  // ===== 主題色系（可自選，存 state.theme）=====
+  var THEMES = [
+    { key: 'night', name: '深夜藍', dot: '#5b8def' },
+    { key: 'light', name: '純淨白', dot: '#3b6fe0' },
+    { key: 'forest', name: '森林綠', dot: '#3fae7a' },
+    { key: 'sakura', name: '櫻花粉', dot: '#e0608c' },
+    { key: 'sunny', name: '暖陽杏', dot: '#e08f2e' },
+    { key: 'violet', name: '紫夜', dot: '#8b6fe8' }
+  ];
+  function applyTheme() {
+    var t = state.theme || 'night';
+    if (t === 'night') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+    var meta = document.querySelector('meta[name=theme-color]');
+    if (meta) {
+      var bgs = { night: '#12141a', light: '#f3f5fa', forest: '#101815', sakura: '#fdf3f5', sunny: '#fbf6ec', violet: '#14121f' };
+      meta.setAttribute('content', bgs[t] || '#12141a');
+    }
+  }
+  (function initThemePanel() {
+    var panel = $('themePanel');
+    function render() {
+      panel.innerHTML = '';
+      THEMES.forEach(function (t) {
+        var b = document.createElement('button');
+        b.className = 'theme-sw' + ((state.theme || 'night') === t.key ? ' active' : '');
+        b.innerHTML = '<span class="theme-dot" style="background:' + t.dot + '"></span>' + t.name;
+        b.addEventListener('click', function () {
+          state.theme = t.key;
+          save(); applyTheme(); render();
+        });
+        panel.appendChild(b);
+      });
+    }
+    $('themeBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      render();
+      panel.classList.toggle('hidden');
+    });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { panel.classList.add('hidden'); });
+  })();
+  applyTheme();
+
   document.querySelectorAll('.card').forEach(function (c) {
     c.addEventListener('click', function () {
       var go = c.getAttribute('data-go');

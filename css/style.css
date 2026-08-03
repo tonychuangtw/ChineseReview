@@ -276,3 +276,131 @@ main { max-width: 640px; margin: 0 auto; padding: 1rem; }
 @media (min-width: 520px) {
   .cards { grid-template-columns: 1fr 1fr 1fr; }
 }
+
+/* ===== 2.0 視覺升級（2026-08-03）：主題色系 + 質感強化 ===== */
+:root {
+  --accent2: #7fb0ff;      /* 漸層搭檔色 */
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+}
+/* --- 主題色盤（html[data-theme]） --- */
+[data-theme="light"] {
+  --bg: #f3f5fa; --panel: #ffffff; --panel2: #eef1f8;
+  --text: #23262f; --dim: #6b7280; --accent: #3b6fe0; --accent2: #6f9bf5;
+  --good: #2e9e5f; --bad: #d84848; --border: #dce1ec;
+  --shadow: 0 8px 24px rgba(60, 80, 140, 0.12);
+}
+[data-theme="forest"] {
+  --bg: #101815; --panel: #18231e; --panel2: #1f2e27;
+  --text: #e6efe9; --dim: #93a89b; --accent: #3fae7a; --accent2: #6fd0a3;
+  --good: #4cc286; --bad: #e06055; --border: #29392f;
+}
+[data-theme="sakura"] {
+  --bg: #fdf3f5; --panel: #ffffff; --panel2: #fbe9ee;
+  --text: #3a2e33; --dim: #96808a; --accent: #e0608c; --accent2: #f090b2;
+  --good: #2e9e5f; --bad: #d84848; --border: #f0d5dd;
+  --shadow: 0 8px 24px rgba(200, 100, 140, 0.14);
+}
+[data-theme="sunny"] {
+  --bg: #fbf6ec; --panel: #ffffff; --panel2: #f6ecda;
+  --text: #37302a; --dim: #8f8574; --accent: #e08f2e; --accent2: #f2b45a;
+  --good: #2e9e5f; --bad: #d84848; --border: #ead9bc;
+  --shadow: 0 8px 24px rgba(180, 130, 50, 0.14);
+}
+[data-theme="violet"] {
+  --bg: #14121f; --panel: #1d1a2e; --panel2: #262239;
+  --text: #eae7f5; --dim: #a099b8; --accent: #8b6fe8; --accent2: #b39af5;
+  --good: #3fb46f; --bad: #e05555; --border: #322c4a;
+}
+/* --- 背景氛圍 --- */
+body {
+  background: radial-gradient(1200px 500px at 85% -10%,
+    color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%), var(--bg);
+  transition: background 0.35s, color 0.35s;
+}
+/* --- Topbar --- */
+.topbar {
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar h1 {
+  background: linear-gradient(120deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  font-weight: 800; letter-spacing: 0.02em;
+}
+/* --- 卡片 --- */
+.card {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--panel) 92%, var(--accent)) 0%, var(--panel) 55%);
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.card-icon { font-size: 1.6rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2)); }
+.card-title { font-weight: 700; }
+/* --- Chips / 按鈕 --- */
+.chip { transition: all 0.15s; }
+.chip:hover { border-color: var(--accent); }
+.chip.active {
+  background: linear-gradient(120deg, var(--accent), var(--accent2));
+  border-color: transparent; color: #fff; font-weight: 700;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.btn-primary {
+  background: linear-gradient(120deg, var(--accent), var(--accent2));
+  border-radius: 12px; font-weight: 700;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-good { border-radius: 12px; }
+.btn-bad { border-radius: 12px; }
+/* --- 測驗卡 --- */
+.quiz-card {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.q-opt {
+  border-radius: 12px;
+  transition: transform 0.12s, border-color 0.15s, background 0.15s;
+}
+.q-opt:not(:disabled):hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel2)); }
+.q-opt.correct { animation: pop 0.3s; }
+.q-opt.wrongpick { animation: shake 0.3s; }
+@keyframes pop { 50% { transform: scale(1.02); } }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.qbar { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.q-feedback { border-radius: 12px; }
+/* --- 清單項 --- */
+.unit-item, .wrong-item {
+  border-radius: var(--radius);
+  transition: transform 0.15s, border-color 0.2s;
+}
+.unit-item:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.drill-bar { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+/* --- 面板 --- */
+.grade-panel, .daily-detail { border-radius: var(--radius); box-shadow: var(--shadow); }
+/* --- 主題選擇面板 --- */
+.theme-panel {
+  position: fixed; top: 3.6rem; right: 0.8rem; z-index: 20;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 0.8rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+}
+.theme-sw {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  background: none; border: none; cursor: pointer; color: var(--text); font-size: 0.75rem;
+  padding: 0.3rem; border-radius: 10px;
+}
+.theme-sw:hover { background: var(--panel2); }
+.theme-dot {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid var(--border);
+}
+.theme-sw.active .theme-dot { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
