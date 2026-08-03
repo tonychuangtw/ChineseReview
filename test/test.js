@@ -172,6 +172,8 @@ console.log('全科架構 / 自創分冊分課 / 解析強化');
     const n = D[k].filter(i => i.deep && i.deep.length >= 30).length;
     ok(n === D[k].length, `${k} 深度解析全數覆蓋（${n}/${D[k].length}）`);
   }
+  const noExp = D.custom.filter(c => !c.exp || c.exp.trim().length < 2).length;
+  ok(noExp === 0, `自創題庫解析零缺漏（缺 ${noExp} 題）`);
 }
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
