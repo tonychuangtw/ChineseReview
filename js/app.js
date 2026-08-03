@@ -1439,15 +1439,19 @@
 
   /* ---------- 自創題庫（分冊分課選範圍） ---------- */
 
-  var customSel = { book: null, diff: null, qtype: null };
+  var customSel = { book: null, diffs: [], qtypes: [] }; // diffs/qtypes 可複選，空陣列＝全部
 
-  // 依難易度/題型過濾（null＝全部）
   function customFilter(pool) {
     return pool.filter(function (it) {
-      if (customSel.diff && (it.diff || '中') !== customSel.diff) return false;
-      if (customSel.qtype && (it.qtype || '綜合') !== customSel.qtype) return false;
+      if (customSel.diffs.length && customSel.diffs.indexOf(it.diff || '中') < 0) return false;
+      if (customSel.qtypes.length && customSel.qtypes.indexOf(it.qtype || '綜合') < 0) return false;
       return true;
     });
+  }
+
+  function toggleSel(arr, v) {
+    var i = arr.indexOf(v);
+    if (i >= 0) arr.splice(i, 1); else arr.push(v);
   }
 
   function showCustom() {
@@ -1469,17 +1473,21 @@
       btn.addEventListener('click', function () { customSel.book = b.book; showCustom(); });
       row.appendChild(btn);
     });
-    // 難易度篩選
+    // 難易度篩選（可複選；「全部難度」清空選取）
     var drow = $('customDiffs');
     drow.innerHTML = '';
     [[null, '全部難度'], ['易', '易'], ['中', '中'], ['難', '難']].forEach(function (o) {
       var b = document.createElement('button');
-      b.className = 'chip' + (customSel.diff === o[0] ? ' active' : '');
+      b.className = 'chip' + ((o[0] === null ? !customSel.diffs.length : customSel.diffs.indexOf(o[0]) >= 0) ? ' active' : '');
       b.textContent = o[1];
-      b.addEventListener('click', function () { customSel.diff = o[0]; showCustom(); });
+      b.addEventListener('click', function () {
+        if (o[0] === null) customSel.diffs = [];
+        else toggleSel(customSel.diffs, o[0]);
+        showCustom();
+      });
       drow.appendChild(b);
     });
-    // 題型篩選（只列該冊實際存在的題型）
+    // 題型篩選（可複選；只列該冊實際存在的題型）
     var trow = $('customTypes');
     trow.innerHTML = '';
     var typesHere = [];
@@ -1487,11 +1495,16 @@
       var t = it.qtype || '綜合';
       if (typesHere.indexOf(t) < 0) typesHere.push(t);
     });
+    customSel.qtypes = customSel.qtypes.filter(function (t) { return typesHere.indexOf(t) >= 0; });
     [[null, '全部題型']].concat(typesHere.map(function (t) { return [t, t]; })).forEach(function (o) {
       var b = document.createElement('button');
-      b.className = 'chip' + (customSel.qtype === o[0] ? ' active' : '');
+      b.className = 'chip' + ((o[0] === null ? !customSel.qtypes.length : customSel.qtypes.indexOf(o[0]) >= 0) ? ' active' : '');
       b.textContent = o[1];
-      b.addEventListener('click', function () { customSel.qtype = o[0]; showCustom(); });
+      b.addEventListener('click', function () {
+        if (o[0] === null) customSel.qtypes = [];
+        else toggleSel(customSel.qtypes, o[0]);
+        showCustom();
+      });
       trow.appendChild(b);
     });
     var list = $('customList');
@@ -1520,9 +1533,11 @@
   $('customExit').addEventListener('click', function () { show('home'); });
 
   function customDrillKey(book, lesson) {
-    // 舊 key 'custom'（全庫）沿用；有選冊/課/難度/題型才加後綴
+    // 舊 key 'custom'（全庫）沿用；有選冊/課/難度/題型才加後綴（複選排序後串接）
+    var d = customSel.diffs.slice().sort().join(',');
+    var t = customSel.qtypes.slice().sort().join(',');
     return 'custom' + (book ? '|' + book : '') + (lesson ? '|' + lesson : '') +
-      (customSel.diff ? '|d:' + customSel.diff : '') + (customSel.qtype ? '|t:' + customSel.qtype : '');
+      (d ? '|d:' + d : '') + (t ? '|t:' + t : '');
   }
 
   /* ---------- 依序刷題（含自創題庫，做到哪記到哪） ---------- */
@@ -1583,7 +1598,9 @@
     quiz.drillBook = book || null;
     quiz.drillLesson = lesson || null;
     quiz.drillDesc = cat === 'custom'
-      ? [book, lesson, customSel.diff ? '難度:' + customSel.diff : '', customSel.qtype ? '題型:' + customSel.qtype : ''].filter(Boolean).join(' ') || '自創題庫'
+      ? [book, lesson,
+         customSel.diffs.length ? '難度:' + customSel.diffs.join('/') : '',
+         customSel.qtypes.length ? '題型:' + customSel.qtypes.join('/') : ''].filter(Boolean).join(' ') || '自創題庫'
       : CAT_NAME[cat] + '（' + gradesLabel(state.grades) + '）';
   }
 
