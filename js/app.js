@@ -689,7 +689,8 @@
   function beginQuiz(entries, mode, cat) {
     quiz = {
       entries: entries, i: 0, score: 0, mode: mode, cat: cat,
-      round: 1, firstTry: {}, wrongNow: [], startedAt: Date.now(), combo: 0, best: 0
+      round: 1, firstTry: {}, wrongNow: [], startedAt: Date.now(), combo: 0, best: 0,
+      snaps: [], view: null // 已出過的題目快照（供「上一題」回顧）
     };
     $('quizResult').classList.add('hidden');
     document.querySelector('#view-quiz .quiz-card').classList.remove('hidden');
@@ -701,11 +702,22 @@
     var e = quiz.entries[quiz.i];
     var q = buildEntryQ(e);
     if (!q) { quiz.i++; if (quiz.i < quiz.entries.length) return renderQ(); return finishRound(); }
+    quiz.snaps.push({ q: q, e: e, no: quiz.i + 1, round: quiz.round, answered: null });
+    paintSnap(quiz.snaps.length - 1);
+  }
+
+  // 畫出第 k 個快照；k < 最新 ⇒ 回顧模式（唯讀）
+  function paintSnap(k) {
+    var snap = quiz.snaps[k];
+    var q = snap.q, e = snap.e;
+    var latest = k === quiz.snaps.length - 1;
+    quiz.view = k;
     quiz.cur = q; quiz.curEntry = e;
-    $('quizProgress').textContent = (quiz.i + 1) + ' / ' + quiz.entries.length +
-      (quiz.mode === 'daily' && quiz.round > 1 ? ' · 第' + quiz.round + '輪' : '');
+    $('quizProgress').textContent = latest
+      ? snap.no + ' / ' + quiz.entries.length + (quiz.mode === 'daily' && quiz.round > 1 ? ' · 第' + quiz.round + '輪' : '')
+      : '🔎 回顧 第' + snap.no + '題';
     $('quizScore').textContent = quiz.mode === 'daily' ? '' : '得分 ' + quiz.score;
-    $('quizBar').style.width = Math.round(100 * quiz.i / quiz.entries.length) + '%';
+    $('quizBar').style.width = Math.round(100 * (snap.no - 1) / quiz.entries.length) + '%';
     $('quizTag').textContent = (quiz.mode === 'daily' ? '📅 每日練習 · ' : '') +
       (e.rev ? '🔁 錯題複習 · ' : '') +
       CAT_NAME[q.type] + (q.item.grade ? ' · ' + gradeLabel(q.item.grade) : '');
@@ -719,12 +731,40 @@
       var b = document.createElement('button');
       b.className = 'q-opt';
       b.textContent = opt;
-      b.addEventListener('click', function () { answer(idx, b); });
+      if (snap.answered) {
+        b.disabled = true;
+        if (idx === q.correct) b.classList.add('correct');
+        if (!snap.answered.ok && idx === snap.answered.idx) b.classList.add('wrongpick');
+      } else {
+        b.addEventListener('click', function () { answer(idx, b); });
+      }
       box.appendChild(b);
     });
-    $('quizFeedback').classList.add('hidden');
-    $('quizNext').classList.add('hidden');
-    $('quizGuess').classList.add('hidden');
+    var fb = $('quizFeedback');
+    if (snap.answered) {
+      fb.textContent = (snap.answered.ok ? '✓ 答對了！' : '✗ 答錯了。（已自動加入錯題本安排複習）') + '\n' + q.explain;
+      fb.className = 'q-feedback ' + (snap.answered.ok ? 'good' : 'bad');
+      fb.classList.remove('hidden');
+      maybeImg(fb, q.type, q.item.id);
+      $('quizNext').textContent = latest ? '下一題' : '返回 →';
+      $('quizNext').classList.remove('hidden');
+    } else {
+      fb.classList.add('hidden');
+      $('quizNext').classList.add('hidden');
+    }
+    // 用猜的按鈕：只在「最新一題、已答且答對」時顯示（規則：答錯自動進錯題本，不需此鈕）
+    var gBtn = $('quizGuess');
+    if (latest && snap.answered && snap.answered.ok && q.type !== 'reading') {
+      gBtn.textContent = '🤔 這題用猜的（加入複習）';
+      gBtn.disabled = false;
+      gBtn.classList.remove('hidden');
+      gBtn.onclick = function () {
+        addWrong(q.type, q.item.id);
+        gBtn.textContent = '✓ 已加入錯題本';
+        gBtn.disabled = true;
+      };
+    } else gBtn.classList.add('hidden');
+    $('quizPrev').classList.toggle('hidden', k === 0);
   }
 
   function maybeImg(container, type, id) {
@@ -742,7 +782,21 @@
     var opts = document.querySelectorAll('#quizOptions .q-opt');
     opts.forEach(function (o) { o.disabled = true; });
     var ok = idx === q.correct;
-    opts[q.correct].classList.add('correct');
+    var snap = quiz.snaps[quiz.snaps.length - 1];
+    if (snap) snap.answered = { idx: idx, ok: ok };
+    // 規則：答對才顯示「用猜的」按鈕（答錯已自動進錯題本）；一律先處理按鈕，避免後續流程影響
+    var gBtn = $('quizGuess');
+    if (ok && q.type !== 'reading') {
+      gBtn.textContent = '🤔 這題用猜的（加入複習）';
+      gBtn.disabled = false;
+      gBtn.classList.remove('hidden');
+      gBtn.onclick = function () {
+        addWrong(q.type, q.item.id);
+        gBtn.textContent = '✓ 已加入錯題本';
+        gBtn.disabled = true;
+      };
+    } else gBtn.classList.add('hidden');
+    if (opts[q.correct]) opts[q.correct].classList.add('correct');
     if (!ok) btn.classList.add('wrongpick');
     if (ok) quiz.score++;
     // 連對計數
@@ -760,26 +814,15 @@
     }
     // 答對：更新錯題本連對紀錄（保留制，不自動移除）
     if (ok && q.type !== 'reading') touchWrongOnCorrect(q.type, q.item.id);
-    // 「用猜的」按鈕：答對但不確定 → 也列入錯題本
-    var gBtn = $('quizGuess');
-    if (ok && q.type !== 'reading') {
-      gBtn.textContent = '🤔 這題用猜的（加入複習）';
-      gBtn.disabled = false;
-      gBtn.classList.remove('hidden');
-      gBtn.onclick = function () {
-        addWrong(q.type, q.item.id);
-        gBtn.textContent = '✓ 已加入錯題本';
-        gBtn.disabled = true;
-      };
-    } else gBtn.classList.add('hidden');
     if (!ok) quiz.wrongNow.push(e);
     bumpStat(q.type, ok);
     if (!ok && q.type !== 'reading' && quiz.round === 1) addWrong(q.type, q.item.id);
     var fb = $('quizFeedback');
-    fb.textContent = (ok ? '✓ 答對了！' : '✗ 答錯了。') + '\n' + q.explain;
+    fb.textContent = (ok ? '✓ 答對了！' : '✗ 答錯了。（已自動加入錯題本安排複習）') + '\n' + q.explain;
     fb.className = 'q-feedback ' + (ok ? 'good' : 'bad');
     fb.classList.remove('hidden');
     maybeImg(fb, q.type, q.item.id);
+    $('quizNext').textContent = '下一題';
     $('quizNext').classList.remove('hidden');
     if (quiz.mode !== 'daily') $('quizScore').textContent = '得分 ' + quiz.score;
   }
@@ -812,10 +855,14 @@
     var cat = quiz.cat, retry = quiz.mode === 'retry', drill = quiz.mode === 'drill';
     if (drill) {
       var done = Math.min(quiz.drillBase + quiz.entries.length, quiz.drillTotal);
-      $('quizAgain').textContent = done >= quiz.drillTotal ? '已刷完全部 🎉 回列表' : '繼續刷下一批 →';
+      var finished = done >= quiz.drillTotal;
+      $('quizAgain').textContent = finished ? '回列表' : '繼續刷下一批 →';
       var prog = document.createElement('div');
-      prog.textContent = CAT_NAME[cat] + ' 進度：' + done + ' / ' + quiz.drillTotal;
+      prog.textContent = finished
+        ? '🎉 「' + (quiz.drillDesc || CAT_NAME[cat]) + '」的題目已完整刷完一輪！（共 ' + quiz.drillTotal + ' 題）'
+        : (quiz.drillDesc || CAT_NAME[cat]) + ' 進度：' + done + ' / ' + quiz.drillTotal;
       $('quizResult').insertBefore(prog, $('quizAgain'));
+      if (finished) setStatusToast('🎉 這一類題目做完一輪了！');
     }
     var dBook = quiz.drillBook, dLesson = quiz.drillLesson, dKey = quiz.drillKey;
     $('quizAgain').addEventListener('click', function () {
@@ -831,9 +878,15 @@
   }
 
   $('quizNext').addEventListener('click', function () {
+    // 回顧模式：往前走回最新一題
+    if (quiz.view != null && quiz.view < quiz.snaps.length - 1) { paintSnap(quiz.view + 1); return; }
     quiz.i++;
     if (quiz.i >= quiz.entries.length) finishRound();
     else renderQ();
+  });
+  $('quizPrev').addEventListener('click', function () {
+    var k = (quiz.view == null ? quiz.snaps.length - 1 : quiz.view) - 1;
+    if (k >= 0) paintSnap(k);
   });
   $('quizExit').addEventListener('click', function () {
     if (quiz && quiz.mode === 'daily' && !((state.daily || {})[today()] || {}).done) {
@@ -1386,7 +1439,16 @@
 
   /* ---------- 自創題庫（分冊分課選範圍） ---------- */
 
-  var customSel = { book: null };
+  var customSel = { book: null, diff: null, qtype: null };
+
+  // 依難易度/題型過濾（null＝全部）
+  function customFilter(pool) {
+    return pool.filter(function (it) {
+      if (customSel.diff && (it.diff || '中') !== customSel.diff) return false;
+      if (customSel.qtype && (it.qtype || '綜合') !== customSel.qtype) return false;
+      return true;
+    });
+  }
 
   function showCustom() {
     if (!DATA.custom.length) {
@@ -1407,6 +1469,31 @@
       btn.addEventListener('click', function () { customSel.book = b.book; showCustom(); });
       row.appendChild(btn);
     });
+    // 難易度篩選
+    var drow = $('customDiffs');
+    drow.innerHTML = '';
+    [[null, '全部難度'], ['易', '易'], ['中', '中'], ['難', '難']].forEach(function (o) {
+      var b = document.createElement('button');
+      b.className = 'chip' + (customSel.diff === o[0] ? ' active' : '');
+      b.textContent = o[1];
+      b.addEventListener('click', function () { customSel.diff = o[0]; showCustom(); });
+      drow.appendChild(b);
+    });
+    // 題型篩選（只列該冊實際存在的題型）
+    var trow = $('customTypes');
+    trow.innerHTML = '';
+    var typesHere = [];
+    customPool(DATA.custom, customSel.book, null).forEach(function (it) {
+      var t = it.qtype || '綜合';
+      if (typesHere.indexOf(t) < 0) typesHere.push(t);
+    });
+    [[null, '全部題型']].concat(typesHere.map(function (t) { return [t, t]; })).forEach(function (o) {
+      var b = document.createElement('button');
+      b.className = 'chip' + (customSel.qtype === o[0] ? ' active' : '');
+      b.textContent = o[1];
+      b.addEventListener('click', function () { customSel.qtype = o[0]; showCustom(); });
+      trow.appendChild(b);
+    });
     var list = $('customList');
     list.innerHTML = '';
     state.drillPos = state.drillPos || {};
@@ -1414,24 +1501,28 @@
     var rows = cur.lessons.map(function (l) { return { label: l, lesson: l }; });
     rows.push({ label: '整冊全部', lesson: null });
     rows.forEach(function (r) {
-      var p = customPool(DATA.custom, cur.book, r.lesson);
+      var p = customFilter(customPool(DATA.custom, cur.book, r.lesson));
       var key = customDrillKey(cur.book, r.lesson);
       var pos = Math.min(state.drillPos[key] || 0, p.length);
       var pct = p.length ? Math.round(100 * pos / p.length) : 0;
       var div = document.createElement('button');
       div.className = 'unit-item';
       div.innerHTML = '<b>' + r.label + '</b>' +
-        '<small>' + pos + ' / ' + p.length + ' 題（' + pct + '%）' + (pos >= p.length && p.length ? ' · 已刷完，可重頭再刷' : '') + '</small>' +
+        '<small>' + pos + ' / ' + p.length + ' 題（' + pct + '%）' + (pos >= p.length && p.length ? ' · 已刷完一輪 🎉 可重頭再刷' : '') + '</small>' +
         '<div class="drill-track"><div class="drill-bar" style="width:' + pct + '%"></div></div>';
-      div.addEventListener('click', function () { startDrill('custom', cur.book, r.lesson); });
+      div.addEventListener('click', function () {
+        if (!p.length) { setStatusToast('這個範圍沒有符合篩選的題目'); return; }
+        startDrill('custom', cur.book, r.lesson);
+      });
       list.appendChild(div);
     });
   }
   $('customExit').addEventListener('click', function () { show('home'); });
 
   function customDrillKey(book, lesson) {
-    // 舊 key 'custom'（全庫）沿用；有選冊/課才加後綴
-    return 'custom' + (book ? '|' + book : '') + (lesson ? '|' + lesson : '');
+    // 舊 key 'custom'（全庫）沿用；有選冊/課/難度/題型才加後綴
+    return 'custom' + (book ? '|' + book : '') + (lesson ? '|' + lesson : '') +
+      (customSel.diff ? '|d:' + customSel.diff : '') + (customSel.qtype ? '|t:' + customSel.qtype : '');
   }
 
   /* ---------- 依序刷題（含自創題庫，做到哪記到哪） ---------- */
@@ -1439,7 +1530,7 @@
   var DRILL_CHUNK = 20;
 
   function drillPool(cat, book, lesson) {
-    if (cat === 'custom') return book ? customPool(DATA.custom, book, lesson) : DATA.custom;
+    if (cat === 'custom') return customFilter(book ? customPool(DATA.custom, book, lesson) : DATA.custom);
     return filterByGrades(DATA[cat] || [], state.grades);
   }
   function drillKey(cat, book, lesson) {
@@ -1491,6 +1582,9 @@
     quiz.drillTotal = pool.length;
     quiz.drillBook = book || null;
     quiz.drillLesson = lesson || null;
+    quiz.drillDesc = cat === 'custom'
+      ? [book, lesson, customSel.diff ? '難度:' + customSel.diff : '', customSel.qtype ? '題型:' + customSel.qtype : ''].filter(Boolean).join(' ') || '自創題庫'
+      : CAT_NAME[cat] + '（' + gradesLabel(state.grades) + '）';
   }
 
   /* ---------- 單元學習（先教後考，逐關解鎖） ---------- */

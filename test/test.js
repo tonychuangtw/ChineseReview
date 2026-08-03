@@ -174,6 +174,7 @@ console.log('全科架構 / 自創分冊分課 / 解析強化');
   }
   const noExp = D.custom.filter(c => !c.exp || c.exp.trim().length < 2).length;
   ok(noExp === 0, `自創題庫解析零缺漏（缺 ${noExp} 題）`);
+  ok(D.custom.every(c => ['易', '中', '難'].includes(c.diff) && c.qtype), '自創題庫難易度/題型欄位完整');
 }
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
