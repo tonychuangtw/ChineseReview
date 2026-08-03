@@ -69,9 +69,31 @@
     return '\n📖 其他選項：' + others.map(function (o) { return o.term + '＝' + o.meaning; }).join('；');
   }
 
-  // 深度解析（注音比較/國字拆解/典故，存 item.deep，逐條人工撰寫）
+  // 注音聲調名（一聲不標調號）
+  function toneName(zy) {
+    if (zy.indexOf('˙') >= 0) return '輕聲';
+    var last = zy.charAt(zy.length - 1);
+    return last === 'ˊ' ? '二聲' : last === 'ˇ' ? '三聲' : last === 'ˋ' ? '四聲' : '一聲';
+  }
+
+  // 成語注音比較：由 term+zhuyin 自動逐字產生（Tony 2026-08-03：成語解析要含注音比較）
+  function idiomZyCompare(item) {
+    if (!item.term || !item.zhuyin) return '';
+    var chars = item.term.split('');
+    var zys = item.zhuyin.split(' ');
+    if (chars.length !== zys.length) return '';
+    return '\n🔤 注音比較：\n' + chars.map(function (c, i) {
+      return c + '：' + zys[i] + '（' + toneName(zys[i]) + '）';
+    }).join('\n');
+  }
+
+  // 深度解析（存 item.deep，逐條人工撰寫）：
+  // 成語＝典故與成語意思（注音比較自動生成，不含國字拆解）；字音/字形＝注音比較＋國字拆解與造字原因
   function deepExp(item) {
-    return item.deep ? '\n📚 深度解析：\n' + item.deep : '';
+    var isIdiom = item.id && item.id.charAt(0) === 'i';
+    var auto = isIdiom ? idiomZyCompare(item) : '';
+    var deep = item.deep ? '\n📚 ' + (isIdiom ? '典故與成語意思' : '深度解析') + '：\n' + item.deep : '';
+    return auto + deep;
   }
 
   function buildIdiomQ(item, pool) {
@@ -1572,7 +1594,8 @@
       if (it.note) line('lesson-meaning', '💡 ' + it.note);
       line('lesson-example', '例：' + it.sentence.split('（　）').join(it.answer));
     }
-    if (it.deep) line('lesson-extra', '📚 深度解析：\n' + it.deep);
+    var dx = deepExp(it);
+    if (dx) line('lesson-extra', dx.replace(/^\n/, ''));
     $('lessonPrev').disabled = L.i === 0;
     $('lessonNext').textContent = L.i === L.items.length - 1 ? '開始單元測驗 ✍️' : '下一個 →';
   }

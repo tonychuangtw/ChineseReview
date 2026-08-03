@@ -162,9 +162,12 @@ console.log('全科架構 / 自創分冊分課 / 解析強化');
     if (t === 49) ok(true, '成語解析含其他 3 個選項的成語意思');
   }
   const deepIt = D.idioms.find(i => i.id === 'i013');
-  ok(deepIt && deepIt.deep && deepIt.deep.indexOf('注音比較') >= 0 && deepIt.deep.indexOf('典故') >= 0, 'i013 深度解析範例存在且含三段架構');
+  ok(deepIt && deepIt.deep && deepIt.deep.indexOf('典故由來') >= 0 && deepIt.deep.indexOf('引申意思') >= 0, 'i013 典故解析範例存在');
   const dq = PURE.buildIdiomQ(deepIt, D.idioms);
-  ok(dq.explain.indexOf('深度解析') >= 0, '深度解析會出現在答題回饋');
+  ok(dq.explain.indexOf('注音比較') >= 0 && dq.explain.indexOf('楚：ㄔㄨˇ（三聲）') >= 0, '成語注音比較自動生成');
+  ok(dq.explain.indexOf('典故與成語意思') >= 0, '典故解析會出現在答題回饋');
+  const dq2 = PURE.buildIdiomQ(D.idioms.find(i => i.id === 'i001'), D.idioms);
+  ok(dq2.explain.indexOf('注音比較') >= 0, '沒寫 deep 的成語也自動有注音比較');
 }
 
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
