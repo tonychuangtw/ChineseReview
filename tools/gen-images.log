@@ -1111,3 +1111,9 @@
     "message": "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.
 2026-08-02T18:23:52.154Z rate limited — sleeping 60s
 2026-08-02T18:24:54.713Z done: 89 ok, 53 failed
+2026-08-02T18:26:11.609Z start: 53 images to generate
+2026-08-02T18:26:11.972Z FAIL i748 墨守成規: HTTP 429 {
+  "error": {
+    "code": 429,
+    "message": "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.
+2026-08-02T18:26:11.973Z rate limited — sleeping 60s
