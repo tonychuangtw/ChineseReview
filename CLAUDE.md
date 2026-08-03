@@ -37,3 +37,11 @@
 - 依序刷題進度存 state.drillPos[cat|grades]，自創題庫 key 為 'custom'
 - 內容擴充 roadmap（Tony 2026-08-02 定案，每日分批）：閱讀 54→102 篇（小學各8/國中各10/高中各8，優先）；成語 800→1000；字音 420→600；字形 400→600；俚語 320→400；成語 wordExp 逐字解析從小二往上補到全 800 條（小一已完成）；配圖目標全 800 條。動畫暫緩（成本高，Tony 同意先圖+逐字解析）
 - 筆順動畫：js/vendor/hanzi-writer.min.js + strokes/uXXXX.json（來源 hanzi-writer-data，Arphic 授權見 strokes/README.md）；新增字形題後跑一次下載腳本補字（參考 git log f3972f1 的做法）；載不到的字自動隱藏面板
+
+## 2026-08-03 全科版擴充（Tony 定案）
+
+- 全科架構：進站先選科目（js/data/subjects.js 的 APP_SUBJECTS：國語/英文/數學/自然/社會），state.subject 記住；國語以外先有架構、題庫空著（schema 同 custom，id 前綴 e/m/n/o），有題後首頁自動出現「開始練習」
+- 自創題庫分冊分課：custom 條目加選填 `book`（冊，如"五上"）、`lesson`（課，如"第1課"）；前端 view-custom 依 冊→課 選範圍刷題，進度 key 為 `custom|冊|課`（全庫沿用舊 key 'custom'）；沒標 book 歸「未分類」
+- 解析強化（範本：Tony 提供的鳶飛戾天筆記，指示詞見 docs/deep-exp-guide.md）：
+  - 成語題答題回饋自動列出其他 3 個選項的成語意思（讀 meaning）；字音題第 4 個借來的讀音自動標出處
+  - 選填欄位 `deep`（idioms/phonics/chars 皆可）：三段式深度解析（注音比較／國字拆解與造字原因／典故與成語意思），顯示於答題回饋與單元教學卡；範例見 idioms i013；內容逐條人工撰寫，依 roadmap 由低年級往上補

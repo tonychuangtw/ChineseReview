@@ -144,5 +144,28 @@ console.log('多選年級 / 弱點 / 錯題排程 / 寫作素材');
   ok(D.writing.every(w => w.quote && w.src && w.tip && w.prompt && w.grade >= 1 && w.grade <= 12), '寫作素材欄位完整');
 }
 
+console.log('全科架構 / 自創分冊分課 / 解析強化');
+{
+  const fake = [
+    { id: 'x001', book: '五上', lesson: '第1課', q: 'q1', options: ['a', 'b', 'c', 'd'], answer: 0 },
+    { id: 'x002', book: '五上', lesson: '第2課', q: 'q2', options: ['a', 'b', 'c', 'd'], answer: 1 },
+    { id: 'x003', book: '五下', lesson: '第1課', q: 'q3', options: ['a', 'b', 'c', 'd'], answer: 2 },
+    { id: 'x004', q: 'q4', options: ['a', 'b', 'c', 'd'], answer: 3 }
+  ];
+  const books = PURE.customBooks(fake);
+  ok(books.length === 3 && books[0].book === '五上' && books[0].lessons.length === 2, '自創題庫分冊分課結構正確');
+  ok(books.some(b => b.book === '未分類'), '沒標冊的題歸入未分類');
+  ok(PURE.customPool(fake, '五上', null).length === 2 && PURE.customPool(fake, '五上', '第1課').length === 1, '冊/課範圍過濾正確');
+  for (let t = 0; t < 50; t++) {
+    const q = PURE.buildIdiomQ(D.idioms[t % D.idioms.length], D.idioms);
+    if (q.explain.indexOf('其他選項') < 0) { ok(false, '成語解析缺其他選項說明 @' + t); break; }
+    if (t === 49) ok(true, '成語解析含其他 3 個選項的成語意思');
+  }
+  const deepIt = D.idioms.find(i => i.id === 'i013');
+  ok(deepIt && deepIt.deep && deepIt.deep.indexOf('注音比較') >= 0 && deepIt.deep.indexOf('典故') >= 0, 'i013 深度解析範例存在且含三段架構');
+  const dq = PURE.buildIdiomQ(deepIt, D.idioms);
+  ok(dq.explain.indexOf('深度解析') >= 0, '深度解析會出現在答題回饋');
+}
+
 console.log(failed ? `\n${failed} 項失敗` : '\n全部通過');
 process.exit(failed ? 1 : 0);

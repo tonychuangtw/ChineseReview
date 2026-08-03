@@ -4,9 +4,11 @@
 
   var W = (typeof window !== 'undefined') ? window : this;
   var DATA = W.APP_DATA || {};
-  ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing', 'custom'].forEach(function (k) {
+  ['idioms', 'slang', 'phonics', 'chars', 'reading', 'writing', 'custom',
+   'english', 'math', 'science', 'social'].forEach(function (k) {
     if (!Array.isArray(DATA[k])) DATA[k] = [];
   });
+  var SUBJECTS = W.APP_SUBJECTS || [{ key: 'chinese', name: '國語', icon: '📖', ready: true, desc: '' }];
 
   /* ---------- 純函式（node 測試用，經 window.PURE 匯出） ---------- */
 
@@ -61,6 +63,17 @@
     return names[g] || ('年級' + g);
   }
 
+  // 其他選項的成語意思（Tony 2026-08-03：錯誤選項也要給解析）
+  function otherIdiomsExp(others) {
+    if (!others.length) return '';
+    return '\n📖 其他選項：' + others.map(function (o) { return o.term + '＝' + o.meaning; }).join('；');
+  }
+
+  // 深度解析（注音比較/國字拆解/典故，存 item.deep，逐條人工撰寫）
+  function deepExp(item) {
+    return item.deep ? '\n📚 深度解析：\n' + item.deep : '';
+  }
+
   function buildIdiomQ(item, pool) {
     // 兩種題型隨機：釋義選擇 / 例句克漏字
     var cloze = item.example && item.example.indexOf(item.term) >= 0 && Math.random() < 0.5;
@@ -72,7 +85,7 @@
         question: item.example.split(item.term).join('（　　　　）') + '\n括號中應填入哪個成語？',
         options: opts.map(function (o) { return o.term; }),
         correct: opts.indexOf(item),
-        explain: item.term + '：' + item.meaning + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '')
+        explain: item.term + '：' + item.meaning + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '') + otherIdiomsExp(others) + deepExp(item)
       };
     }
     var others2 = pickOthers(pool, item, 'meaning', 3);
@@ -82,7 +95,7 @@
       question: '「' + item.term + '」的意思是？',
       options: opts2.map(function (o) { return o.meaning; }),
       correct: opts2.indexOf(item),
-      explain: '例句：' + item.example + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '')
+      explain: '例句：' + item.example + (item.wordExp ? '\n🔍 逐字解析：' + item.wordExp : '') + (item.misuse ? '\n⚠️ ' + item.misuse : '') + otherIdiomsExp(others2) + deepExp(item)
     };
   }
 
@@ -116,12 +129,14 @@
     var correct = -1;
     opts.forEach(function (o, i) { if (o.ok) correct = i; });
     var qWord = item.word.split(item.target).join('「' + item.target + '」');
+    // 借來的第 4 選項標明出處，note 已涵蓋同字誤讀的正確用法
+    var extraExp = extra ? '\n📖 選項「' + (z ? extra.zhuyin : extra.pinyin) + '」是「' + extra.word + '」的「' + extra.target + '」的讀音。' : '';
     return {
       type: 'phonics', item: item,
       question: qWord + ' — 「' + item.target + '」的讀音是？',
       options: opts.map(function (o) { return o.txt; }),
       correct: correct,
-      explain: (item.note || '') + '\n正確讀音：' + item.zhuyin + '（' + item.pinyin + '）'
+      explain: (item.note || '') + '\n正確讀音：' + item.zhuyin + '（' + item.pinyin + '）' + extraExp + deepExp(item)
     };
   }
 
@@ -133,7 +148,7 @@
       question: item.sentence + '\n括號中讀「' + reading + '」的字是？',
       options: opts,
       correct: opts.indexOf(item.answer),
-      explain: (item.note || '') + '\n正確答案：' + item.answer
+      explain: (item.note || '') + '\n正確答案：' + item.answer + deepExp(item)
     };
   }
 
@@ -142,14 +157,14 @@
     var syn = (item.syn || []).slice();
     var ans = syn[Math.floor(Math.random() * syn.length)];
     var cand = pool.filter(function (o) { return syn.indexOf(o.term) < 0 && o.term !== ans; });
-    var distract = pickOthers(cand, item, 'term', 3).map(function (o) { return o.term; });
-    var opts = shuffle([ans].concat(distract));
+    var distractItems = pickOthers(cand, item, 'term', 3);
+    var opts = shuffle([ans].concat(distractItems.map(function (o) { return o.term; })));
     return {
       type: 'idioms', item: item,
       question: '下列哪個成語與「' + item.term + '」意義最接近？',
       options: opts,
       correct: opts.indexOf(ans),
-      explain: item.term + '：' + item.meaning + '\n同義成語：' + syn.join('、')
+      explain: item.term + '：' + item.meaning + '\n同義成語：' + syn.join('、') + otherIdiomsExp(distractItems) + deepExp(item)
     };
   }
 
@@ -166,13 +181,35 @@
   }
 
   function buildCustomQ(item) {
+    var scope = [item.book, item.lesson].filter(Boolean).join(' ');
+    var tag = scope || item.tag;
     return {
       type: 'custom', item: item,
-      question: (item.tag ? '【' + item.tag + '】' : '') + item.q,
+      question: (tag ? '【' + tag + '】' : '') + item.q,
       options: item.options.slice(),
       correct: item.answer,
       explain: (item.exp || '') + '\n正確答案：' + item.options[item.answer]
     };
+  }
+
+  // 自創題庫分冊分課：冊→[課]，沒標 book 的歸「未分類」
+  function customBooks(pool) {
+    var books = [], seen = {};
+    pool.forEach(function (it) {
+      var b = it.book || '未分類';
+      if (!seen[b]) { seen[b] = { book: b, lessons: [], ls: {} }; books.push(seen[b]); }
+      var l = it.lesson || '未分課';
+      if (!seen[b].ls[l]) { seen[b].ls[l] = true; seen[b].lessons.push(l); }
+    });
+    return books;
+  }
+
+  function customPool(pool, book, lesson) {
+    return pool.filter(function (it) {
+      if (book && (it.book || '未分類') !== book) return false;
+      if (lesson && (it.lesson || '未分課') !== lesson) return false;
+      return true;
+    });
   }
 
   // 以字串種子產生決定性亂數（每日練習：同一天同年級 → 同一組題）
@@ -307,7 +344,7 @@
     buildSynQ: buildSynQ, buildReadingQ: buildReadingQ, buildCustomQ: buildCustomQ,
     rngFromString: rngFromString, seededPick: seededPick, composeDaily: composeDaily,
     weakStrong: weakStrong, bumpWrongSchedule: bumpWrongSchedule, buildUnits: buildUnits,
-    dailyStreak: dailyStreak,
+    dailyStreak: dailyStreak, customBooks: customBooks, customPool: customPool,
     nextDue: nextDue, gradeLabel: gradeLabel
   };
 
@@ -395,12 +432,13 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill'];
+  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
     });
     if (name === 'home') renderHome();
+    if (name === 'subject') renderSubjects();
   }
   function $(id) { return document.getElementById(id); }
 
@@ -408,7 +446,55 @@
 
   function pool(cat) { return filterByGrades(DATA[cat], state.grades); }
 
+  function subjectOf(key) {
+    return SUBJECTS.find(function (s) { return s.key === key; }) || SUBJECTS[0];
+  }
+
+  // 科目選擇頁
+  function renderSubjects() {
+    var box = $('subjectCards');
+    box.innerHTML = '';
+    SUBJECTS.forEach(function (s) {
+      var b = document.createElement('button');
+      b.className = 'card' + (state.subject === s.key ? ' daily-done' : '');
+      var bank = s.key === 'chinese' ? null : DATA[s.key];
+      var sub = s.key === 'chinese' ? s.desc : (bank && bank.length ? bank.length + ' 題' : s.desc);
+      b.innerHTML = '<span class="card-icon">' + s.icon + '</span><span class="card-title">' + s.name + '</span>' +
+        '<span class="card-sub">' + sub + '</span>';
+      b.addEventListener('click', function () {
+        state.subject = s.key;
+        save();
+        show('home');
+      });
+      box.appendChild(b);
+    });
+  }
+
   function renderHome() {
+    var subj = subjectOf(state.subject);
+    $('subjectBtn').textContent = subj.icon + ' ' + subj.name + ' ▾';
+    var cards = document.querySelector('#view-home .cards');
+    var ph = $('homePlaceholder');
+    var isChinese = subj.key === 'chinese';
+    cards.classList.toggle('hidden', !isChinese);
+    $('phonToggle').classList.toggle('hidden', !isChinese);
+    if (!isChinese) {
+      var bank = DATA[subj.key] || [];
+      ph.classList.remove('hidden');
+      ph.innerHTML = subj.icon + ' ' + subj.name + '科' +
+        (bank.length ? '共 ' + bank.length + ' 題' : '題庫建置中') +
+        '<br><small>' + (bank.length ? '' : '架構已就緒——把題庫（Word 檔等）傳到 Telegram，轉檔後就能在這裡練習。') + '</small>';
+      if (bank.length) {
+        var go = document.createElement('button');
+        go.className = 'btn-primary';
+        go.textContent = '開始練習';
+        go.addEventListener('click', function () { startSubjectQuiz(subj.key); });
+        ph.appendChild(go);
+      }
+      renderGradeBtn();
+      return;
+    }
+    ph.classList.add('hidden');
     $('cnt-idioms').textContent = pool('idioms').length + ' 題可練';
     $('cnt-slang').textContent = pool('slang').length + ' 題可練';
     $('cnt-phonics').textContent = pool('phonics').length + ' 題可練';
@@ -492,6 +578,7 @@
     save(); renderHome();
   });
   $('homeLink').addEventListener('click', function () { show('home'); });
+  $('subjectBtn').addEventListener('click', function () { show('subject'); });
 
   document.querySelectorAll('.card').forEach(function (c) {
     c.addEventListener('click', function () {
@@ -502,7 +589,7 @@
       else if (go === 'writing') showWriting();
       else if (go === 'units') showUnits();
       else if (go === 'drill') showDrill();
-      else if (go === 'custom') startDrill('custom');
+      else if (go === 'custom') showCustom();
       else if (go === 'write') startWrite();
       else if (go === 'flash') startFlash();
       else if (go === 'wrongbook') showWrongbook();
@@ -513,7 +600,11 @@
   /* ---------- 選擇題測驗（一般／閱讀／每日練習共用引擎） ---------- */
 
   var quiz = null; // {entries, i, score, mode, round, firstTry, wrongNow, startedAt, combo}
-  var CAT_NAME = { idioms: '成語', slang: '俚語諺語', phonics: '字音辨正', chars: '字形辨正', reading: '閱讀測驗', custom: '自創題庫' };
+  var CAT_NAME = {
+    idioms: '成語', slang: '俚語諺語', phonics: '字音辨正', chars: '字形辨正', reading: '閱讀測驗', custom: '自創題庫',
+    english: '英文', math: '數學', science: '自然', social: '社會'
+  };
+  var SUBJECT_CATS = ['english', 'math', 'science', 'social'];
 
   function buildQ(type, item, p) {
     if (type === 'idioms') return buildIdiomQ(item, p);
@@ -524,7 +615,8 @@
 
   function quizCatOf(item) {
     var c = item.id.charAt(0);
-    return c === 'i' ? 'idioms' : c === 's' ? 'slang' : c === 'p' ? 'phonics' : c === 'r' ? 'reading' : c === 'x' ? 'custom' : 'chars';
+    return c === 'i' ? 'idioms' : c === 's' ? 'slang' : c === 'p' ? 'phonics' : c === 'r' ? 'reading' :
+      c === 'x' ? 'custom' : c === 'e' ? 'english' : c === 'm' ? 'math' : c === 'n' ? 'science' : c === 'o' ? 'social' : 'chars';
   }
 
   function entryKey(e) { return e.t + ':' + e.id + (e.qi != null ? '#' + e.qi : '') + (e.syn ? ':syn' : ''); }
@@ -532,10 +624,23 @@
   function buildEntryQ(e) {
     var it = findItem(e.t, e.id);
     if (!it) return null;
-    if (e.t === 'custom') return buildCustomQ(it);
+    if (e.t === 'custom' || SUBJECT_CATS.indexOf(e.t) >= 0) {
+      var q = buildCustomQ(it);
+      q.type = e.t;
+      return q;
+    }
     if (e.t === 'reading') return buildReadingQ(it, e.qi);
     if (e.syn && (it.syn || []).length) return buildSynQ(it, DATA.idioms);
     return buildQ(e.t, it, DATA[e.t]);
+  }
+
+  // 非國語科目的練習（schema 同 custom）
+  function startSubjectQuiz(key) {
+    var p = filterByGrades(DATA[key], state.grades);
+    if (!p.length) p = DATA[key];
+    if (!p.length) { alert('這科還沒有題目。'); return; }
+    var entries = shuffle(p).slice(0, 10).map(function (it) { return { t: key, id: it.id }; });
+    beginQuiz(entries, 'normal', key);
   }
 
   function itemsToEntries(items) {
@@ -581,7 +686,7 @@
     $('quizBar').style.width = Math.round(100 * quiz.i / quiz.entries.length) + '%';
     $('quizTag').textContent = (quiz.mode === 'daily' ? '📅 每日練習 · ' : '') +
       (e.rev ? '🔁 錯題複習 · ' : '') +
-      CAT_NAME[q.type] + ' · ' + gradeLabel(q.item.grade);
+      CAT_NAME[q.type] + (q.item.grade ? ' · ' + gradeLabel(q.item.grade) : '');
     var pas = $('quizPassage');
     if (q.passage) { pas.textContent = q.passage; pas.classList.remove('hidden'); }
     else pas.classList.add('hidden');
@@ -690,13 +795,15 @@
       prog.textContent = CAT_NAME[cat] + ' 進度：' + done + ' / ' + quiz.drillTotal;
       $('quizResult').insertBefore(prog, $('quizAgain'));
     }
+    var dBook = quiz.drillBook, dLesson = quiz.drillLesson, dKey = quiz.drillKey;
     $('quizAgain').addEventListener('click', function () {
       if (retry) showWrongbook();
       else if (drill) {
-        if ((state.drillPos[quiz.drillKey] || 0) >= quiz.drillTotal) showDrill();
-        else startDrill(cat);
+        if ((state.drillPos[dKey] || 0) >= quiz.drillTotal) { if (cat === 'custom') showCustom(); else showDrill(); }
+        else startDrill(cat, dBook, dLesson);
       }
       else if (cat === 'reading') startReading();
+      else if (SUBJECT_CATS.indexOf(cat) >= 0) startSubjectQuiz(cat);
       else startQuiz(cat, null);
     });
   }
@@ -1255,16 +1362,66 @@
   });
   $('progExit').addEventListener('click', function () { show('home'); });
 
+  /* ---------- 自創題庫（分冊分課選範圍） ---------- */
+
+  var customSel = { book: null };
+
+  function showCustom() {
+    if (!DATA.custom.length) {
+      alert('自創題庫還沒有題目。請把 Word 題庫檔傳到 Telegram，轉檔後會自動分冊分課出現在這裡。');
+      return;
+    }
+    show('custom');
+    var books = customBooks(DATA.custom);
+    if (!customSel.book || !books.some(function (b) { return b.book === customSel.book; })) {
+      customSel.book = books[0].book;
+    }
+    var row = $('customBooks');
+    row.innerHTML = '';
+    books.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.className = 'chip' + (customSel.book === b.book ? ' active' : '');
+      btn.textContent = b.book;
+      btn.addEventListener('click', function () { customSel.book = b.book; showCustom(); });
+      row.appendChild(btn);
+    });
+    var list = $('customList');
+    list.innerHTML = '';
+    state.drillPos = state.drillPos || {};
+    var cur = books.find(function (b) { return b.book === customSel.book; });
+    var rows = cur.lessons.map(function (l) { return { label: l, lesson: l }; });
+    rows.push({ label: '整冊全部', lesson: null });
+    rows.forEach(function (r) {
+      var p = customPool(DATA.custom, cur.book, r.lesson);
+      var key = customDrillKey(cur.book, r.lesson);
+      var pos = Math.min(state.drillPos[key] || 0, p.length);
+      var pct = p.length ? Math.round(100 * pos / p.length) : 0;
+      var div = document.createElement('button');
+      div.className = 'unit-item';
+      div.innerHTML = '<b>' + r.label + '</b>' +
+        '<small>' + pos + ' / ' + p.length + ' 題（' + pct + '%）' + (pos >= p.length && p.length ? ' · 已刷完，可重頭再刷' : '') + '</small>' +
+        '<div class="drill-track"><div class="drill-bar" style="width:' + pct + '%"></div></div>';
+      div.addEventListener('click', function () { startDrill('custom', cur.book, r.lesson); });
+      list.appendChild(div);
+    });
+  }
+  $('customExit').addEventListener('click', function () { show('home'); });
+
+  function customDrillKey(book, lesson) {
+    // 舊 key 'custom'（全庫）沿用；有選冊/課才加後綴
+    return 'custom' + (book ? '|' + book : '') + (lesson ? '|' + lesson : '');
+  }
+
   /* ---------- 依序刷題（含自創題庫，做到哪記到哪） ---------- */
 
   var DRILL_CHUNK = 20;
 
-  function drillPool(cat) {
-    if (cat === 'custom') return DATA.custom;
+  function drillPool(cat, book, lesson) {
+    if (cat === 'custom') return book ? customPool(DATA.custom, book, lesson) : DATA.custom;
     return filterByGrades(DATA[cat] || [], state.grades);
   }
-  function drillKey(cat) {
-    return cat === 'custom' ? 'custom' : cat + '|' + state.grades.join(',');
+  function drillKey(cat, book, lesson) {
+    return cat === 'custom' ? customDrillKey(book, lesson) : cat + '|' + state.grades.join(',');
   }
 
   function showDrill() {
@@ -1293,14 +1450,14 @@
   }
   $('drillExit').addEventListener('click', function () { show('home'); });
 
-  function startDrill(cat) {
-    var pool = drillPool(cat);
+  function startDrill(cat, book, lesson) {
+    var pool = drillPool(cat, book, lesson);
     if (!pool.length) { alert(cat === 'custom' ? '自創題庫還沒有題目。請把 Word 題庫檔傳到 Telegram，轉檔後就會出現。' : '這個年級範圍沒有題目。'); return; }
     state.drillPos = state.drillPos || {};
-    var key = drillKey(cat);
+    var key = drillKey(cat, book, lesson);
     var pos = state.drillPos[key] || 0;
     if (pos >= pool.length) {
-      if (!confirm('這個類別已經刷完一輪，要從第 1 題重新開始嗎？')) return;
+      if (!confirm('這個範圍已經刷完一輪，要從第 1 題重新開始嗎？')) return;
       pos = 0;
       state.drillPos[key] = 0;
       save();
@@ -1310,6 +1467,8 @@
     quiz.drillKey = key;
     quiz.drillBase = pos;
     quiz.drillTotal = pool.length;
+    quiz.drillBook = book || null;
+    quiz.drillLesson = lesson || null;
   }
 
   /* ---------- 單元學習（先教後考，逐關解鎖） ---------- */
@@ -1413,6 +1572,7 @@
       if (it.note) line('lesson-meaning', '💡 ' + it.note);
       line('lesson-example', '例：' + it.sentence.split('（　）').join(it.answer));
     }
+    if (it.deep) line('lesson-extra', '📚 深度解析：\n' + it.deep);
     $('lessonPrev').disabled = L.i === 0;
     $('lessonNext').textContent = L.i === L.items.length - 1 ? '開始單元測驗 ✍️' : '下一個 →';
   }
@@ -1499,5 +1659,5 @@
 
   /* ---------- 啟動 ---------- */
   renderHome();
-  show('home');
+  show(state.subject ? 'home' : 'subject'); // 首次進站先選科目
 })();
