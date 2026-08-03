@@ -735,19 +735,26 @@
         b.disabled = true;
         if (idx === q.correct) b.classList.add('correct');
         if (!snap.answered.ok && idx === snap.answered.idx) b.classList.add('wrongpick');
+        if (snap.answered && snap.answered.secondIdx != null && !snap.answered.secondOk && idx === snap.answered.secondIdx) b.classList.add('wrongpick');
       } else {
-        b.addEventListener('click', function () { answer(idx, b); });
+        if (snap.retryFirst != null && idx === snap.retryFirst) { b.disabled = true; b.classList.add('wrongpick'); }
+        else b.addEventListener('click', function () { answer(idx, b); });
       }
       box.appendChild(b);
     });
     var fb = $('quizFeedback');
     if (snap.answered) {
-      fb.textContent = (snap.answered.ok ? '✓ 答對了！' : '✗ 答錯了。（已自動加入錯題本安排複習）') + '\n' + q.explain;
-      fb.className = 'q-feedback ' + (snap.answered.ok ? 'good' : 'bad');
+      fb.textContent = feedbackText(snap.answered, q);
+      fb.className = 'q-feedback ' + (snap.answered.ok || snap.answered.secondOk ? 'good' : 'bad');
       fb.classList.remove('hidden');
       maybeImg(fb, q.type, q.item.id);
       $('quizNext').textContent = latest ? '下一題' : '返回 →';
       $('quizNext').classList.remove('hidden');
+    } else if (snap.retryFirst != null) {
+      fb.textContent = '✗ 不對，再想一次！（成績以第一次為準，這題已列入錯題本）';
+      fb.className = 'q-feedback bad';
+      fb.classList.remove('hidden');
+      $('quizNext').classList.add('hidden');
     } else {
       fb.classList.add('hidden');
       $('quizNext').classList.add('hidden');
@@ -777,16 +784,69 @@
     container.appendChild(img);
   }
 
+  // 作答結果的回饋文字（answer 與 paintSnap 共用）
+  function feedbackText(ans, q) {
+    var head;
+    if (ans.ok) head = '✓ 答對了！';
+    else if (ans.secondOk) head = '第一次沒選對，第二次答對了 ✓（此題以答錯計，已加入錯題本安排複習）';
+    else if (ans.secondIdx != null) head = '✗ 還是不對，正確答案已標示。（已自動加入錯題本安排複習）';
+    else head = '✗ 答錯了。（已自動加入錯題本安排複習）';
+    return head + '\n' + q.explain;
+  }
+
   function answer(idx, btn) {
     var q = quiz.cur, e = quiz.curEntry;
+    var snap = quiz.snaps[quiz.snaps.length - 1];
+    var ok = idx === q.correct;
+    var isSecond = snap.retryFirst != null;
+    if (!isSecond) {
+      // 成績、統計、錯題本一律以「第一次作答」為準
+      if (ok) quiz.score++;
+      quiz.combo = ok ? quiz.combo + 1 : 0;
+      if (quiz.combo > quiz.best) quiz.best = quiz.combo;
+      $('quizCombo').textContent = quiz.combo >= 3 ? '🔥' + quiz.combo : '';
+      var k = entryKey(e);
+      var firstEncounter = quiz.firstTry[k] === undefined;
+      if (firstEncounter) quiz.firstTry[k] = ok;
+      if (firstEncounter && quiz.mode === 'drill') {
+        state.drillPos = state.drillPos || {};
+        state.drillPos[quiz.drillKey] = quiz.drillBase + quiz.i + 1;
+        save();
+      }
+      if (ok && q.type !== 'reading') touchWrongOnCorrect(q.type, q.item.id);
+      if (!ok) quiz.wrongNow.push(e);
+      bumpStat(q.type, ok);
+      if (!ok && q.type !== 'reading' && quiz.round === 1) addWrong(q.type, q.item.id);
+    }
+    // 二次作答：第一次答錯先不公布答案，讓學生再想一次（選項剩 2 個以下就直接公布）
+    if (!ok && !isSecond && q.options.length > 2) {
+      snap.retryFirst = idx;
+      btn.disabled = true;
+      btn.classList.add('wrongpick');
+      var fb0 = $('quizFeedback');
+      fb0.textContent = '✗ 不對，再想一次！（成績以第一次為準，這題已列入錯題本）';
+      fb0.className = 'q-feedback bad';
+      fb0.classList.remove('hidden');
+      $('quizNext').classList.add('hidden');
+      $('quizGuess').classList.add('hidden');
+      return;
+    }
+    // 定案：公布答案與解析
     var opts = document.querySelectorAll('#quizOptions .q-opt');
     opts.forEach(function (o) { o.disabled = true; });
-    var ok = idx === q.correct;
-    var snap = quiz.snaps[quiz.snaps.length - 1];
-    if (snap) snap.answered = { idx: idx, ok: ok };
-    // 規則：答對才顯示「用猜的」按鈕（答錯已自動進錯題本）；一律先處理按鈕，避免後續流程影響
+    snap.answered = isSecond
+      ? { idx: snap.retryFirst, ok: false, secondIdx: idx, secondOk: ok }
+      : { idx: idx, ok: ok, secondIdx: null, secondOk: null };
+    if (opts[q.correct]) opts[q.correct].classList.add('correct');
+    if (!snap.answered.ok) {
+      if (opts[snap.answered.idx]) opts[snap.answered.idx].classList.add('wrongpick');
+      if (snap.answered.secondIdx != null && !snap.answered.secondOk && opts[snap.answered.secondIdx]) {
+        opts[snap.answered.secondIdx].classList.add('wrongpick');
+      }
+    }
+    // 規則：第一次就答對才顯示「用猜的」按鈕（答錯已自動進錯題本）
     var gBtn = $('quizGuess');
-    if (ok && q.type !== 'reading') {
+    if (snap.answered.ok && q.type !== 'reading') {
       gBtn.textContent = '🤔 這題用猜的（加入複習）';
       gBtn.disabled = false;
       gBtn.classList.remove('hidden');
@@ -796,30 +856,9 @@
         gBtn.disabled = true;
       };
     } else gBtn.classList.add('hidden');
-    if (opts[q.correct]) opts[q.correct].classList.add('correct');
-    if (!ok) btn.classList.add('wrongpick');
-    if (ok) quiz.score++;
-    // 連對計數
-    quiz.combo = ok ? quiz.combo + 1 : 0;
-    if (quiz.combo > quiz.best) quiz.best = quiz.combo;
-    $('quizCombo').textContent = quiz.combo >= 3 ? '🔥' + quiz.combo : '';
-    // 每日練習：只記第一次遇到這題的結果
-    var k = entryKey(e);
-    var firstEncounter = quiz.firstTry[k] === undefined;
-    if (firstEncounter) quiz.firstTry[k] = ok;
-    if (firstEncounter && quiz.mode === 'drill') {
-      state.drillPos = state.drillPos || {};
-      state.drillPos[quiz.drillKey] = quiz.drillBase + quiz.i + 1;
-      save();
-    }
-    // 答對：更新錯題本連對紀錄（保留制，不自動移除）
-    if (ok && q.type !== 'reading') touchWrongOnCorrect(q.type, q.item.id);
-    if (!ok) quiz.wrongNow.push(e);
-    bumpStat(q.type, ok);
-    if (!ok && q.type !== 'reading' && quiz.round === 1) addWrong(q.type, q.item.id);
     var fb = $('quizFeedback');
-    fb.textContent = (ok ? '✓ 答對了！' : '✗ 答錯了。（已自動加入錯題本安排複習）') + '\n' + q.explain;
-    fb.className = 'q-feedback ' + (ok ? 'good' : 'bad');
+    fb.textContent = feedbackText(snap.answered, q);
+    fb.className = 'q-feedback ' + (snap.answered.ok || snap.answered.secondOk ? 'good' : 'bad');
     fb.classList.remove('hidden');
     maybeImg(fb, q.type, q.item.id);
     $('quizNext').textContent = '下一題';
