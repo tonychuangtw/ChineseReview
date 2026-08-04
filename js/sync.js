@@ -1,4 +1,4 @@
-/* 中文複習 cloud sync — Google Identity Services + progress sync API.
+/* K12學霸養成 cloud sync — Google Identity Services + progress sync API.
  * 比照 LanExamMock/poker 同一套後端（app=chinese），跨裝置同步 localStorage 進度。 */
 (function () {
   var CLIENT_ID = "481860179039-gb37qsdogd4vgnn2g5umh73jen02avj4.apps.googleusercontent.com";

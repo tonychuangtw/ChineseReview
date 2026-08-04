@@ -1,4 +1,4 @@
-/* 中文複習 — 應用邏輯（vanilla JS，無依賴，資料存 localStorage） */
+/* K12學霸養成 — 應用邏輯（vanilla JS，無依賴，資料存 localStorage） */
 (function () {
   'use strict';
 

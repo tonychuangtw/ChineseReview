@@ -104,7 +104,7 @@ async function main() {
 
   let body;
   if (!rows.length) {
-    body = '📚 中文複習週報\n\n目前還沒有任何雲端同步資料。\n請確認孩子的裝置已用 Google 登入網站（右上角登入鈕），登入後練習紀錄才會同步上來。';
+    body = '📚 K12學霸養成週報\n\n目前還沒有任何雲端同步資料。\n請確認孩子的裝置已用 Google 登入網站（右上角登入鈕），登入後練習紀錄才會同步上來。';
   } else {
     const parts = [];
     let anyDone = 0;
@@ -119,7 +119,7 @@ async function main() {
       anyDone += r.doneN;
       parts.push(r.text);
     });
-    body = '📚 中文複習週報（' + lastNDays(7)[0] + ' ~ ' + lastNDays(7)[6] + '）\n\n' + parts.join('\n\n──────────\n\n');
+    body = '📚 K12學霸養成週報（' + lastNDays(7)[0] + ' ~ ' + lastNDays(7)[6] + '）\n\n' + parts.join('\n\n──────────\n\n');
     if (!anyDone) body += '\n\n⚠️ 本週完全沒有完成任何每日練習，提醒孩子每天做一回！';
   }
 

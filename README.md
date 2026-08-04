@@ -1,4 +1,4 @@
-# 中文複習 — 成語・俚語・字音・字形
+# K12學霸養成 — 全科複習（國語・英文・數學・自然・社會）
 
 純靜態單頁應用（vanilla HTML/CSS/JS，無框架、無 build step、無外部依賴），可直接以 `file://` 開啟或部署到 GitHub Pages。所有資料只存在瀏覽器 localStorage，無任何網路請求。
 

@@ -1,11 +1,11 @@
-# chinese — 中文成語俚語字音字形複習網站 + 任務線
+# chinese — K12學霸養成（全科複習網站，原中文成語俚語複習站）+ 任務線
 
 這是 `claude-telegram@chinese` 線（bot @Tonychinesereviewbot）的 workdir。Tony 在這條線討論這個網站的需求與加題。
 
 ## 專案概要
 
 - 純靜態網站，比照 LanExamMock 模式：vanilla JS、無 build、GitHub Pages 部署、localStorage 存進度
-- repo：github.com/tonychuangtw/ChineseReview（Pages 從 main branch root 出）
+- repo：github.com/tonychuangtw/K12Review（原 ChineseReview，2026-08-04 改名）（Pages 從 main branch root 出）
 - 2026-08-02 Tony 拍板的規格：
   1. 年級分層國小1-6／國中7-9／高中10-12
   2. 注音與拼音雙版本（一鍵切換，資料內建兩種標音）
