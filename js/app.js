@@ -1876,5 +1876,5 @@
 
   /* ---------- 啟動 ---------- */
   renderHome();
-  show(state.subject ? 'home' : 'subject'); // 首次進站先選科目
+  show('subject'); // 每次進站都先選科目（2026-08-04 Tony：一致性）
 })();
