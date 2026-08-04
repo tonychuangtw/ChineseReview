@@ -2,6 +2,13 @@
 
 這是 `claude-telegram@chinese` 線（bot @Tonychinesereviewbot）的 workdir。Tony 在這條線討論這個網站的需求與加題。
 
+## 本線也負責：LanExamMock 英檢站（2026-08-04 Tony 指示移交）
+
+- 劍橋英檢五級站 KET/PET/FCE/CAE/CPE：https://tonychuangtw.github.io/LanExamMock/（repo tonychuangtw/LanExamMock，本機 clone `~/TelegramClaude/LanExamMock`）
+- 後端在本機（500）systemd：`lanexammock-backend.service`（127.0.0.1:4100，Tailscale Funnel 對外）＝進度同步 + Kimi K3 作文/口說批改；chinese 站的登入同步也共用這個 API（app=chinese）
+- 改動守則：改完必跑 `node test/test.js`（85k+ checks）；內容 UI 一律不顯示中文翻譯（全英文沉浸）；題目原創不可抄劍橋官方題
+- 協作歷史在 `claude-shared/projects/LanExamMock/discussion.md`；07-19 起穩定維運，五級站+AI 批改皆已上線
+
 ## 專案概要
 
 - 純靜態網站，比照 LanExamMock 模式：vanilla JS、無 build、GitHub Pages 部署、localStorage 存進度
