@@ -283,6 +283,60 @@
     return entries;
   }
 
+  // 總結測驗組卷：從所選日期的每日練習題目（daysEntries = [[{t,id,syn?,qi?}...]...]）
+  // 收集題池（去重、排除當日混入的錯題複習題），混入至多 mbShare 題錯題本題（標 rev），
+  // 共出 total 題。閱讀同篇子題永遠連續出現（成塊洗牌）。rng 可傳 Math.random（真隨機）。
+  function composeReview(daysEntries, wrongPool, total, mbShare, rng) {
+    var seen = {};
+    function bareKey(t, id, qi) { return t + ':' + id + (qi != null ? '#' + qi : ''); }
+    var mbItems = [];
+    seededPick(wrongPool || [], (wrongPool || []).length, rng).forEach(function (w) {
+      if (mbItems.length >= mbShare) return;
+      var k = bareKey(w.t, w.id, null);
+      if (seen[k]) return;
+      seen[k] = true;
+      mbItems.push({ t: w.t, id: w.id, rev: true });
+    });
+    var pool = [];
+    (daysEntries || []).forEach(function (dayList) {
+      (dayList || []).forEach(function (e) {
+        if (e.rev) return;
+        var k = bareKey(e.t, e.id, e.qi);   // 同條目的同義題/一般題視為重複，只出一次
+        if (seen[k]) return;
+        seen[k] = true;
+        var it = { t: e.t, id: e.id };
+        if (e.syn) it.syn = true;
+        if (e.qi != null) it.qi = e.qi;
+        pool.push(it);
+      });
+    });
+    // 閱讀同篇成塊，其餘單題成塊
+    var blocks = [], byGid = {};
+    pool.forEach(function (e) {
+      if (e.t === 'reading') {
+        var g = 'r|' + e.id;
+        if (!byGid[g]) { byGid[g] = []; blocks.push(byGid[g]); }
+        byGid[g].push(e);
+      } else blocks.push([e]);
+    });
+    // 抽日期塊湊到 total - 錯題數，再與錯題塊合併洗牌攤平
+    var need = Math.max(0, total - mbItems.length);
+    var chosen = [];
+    seededPick(blocks, blocks.length, rng).some(function (blk) {
+      if (need <= 0) return true;
+      var take = Math.min(blk.length, need);
+      chosen.push(blk.slice(0, take));
+      need -= take;
+      return false;
+    });
+    mbItems.forEach(function (m) { chosen.push([m]); });
+    var out = [];
+    seededPick(chosen, chosen.length, rng).forEach(function (blk) {
+      blk.forEach(function (e) { out.push(e); });
+    });
+    return out;
+  }
+
   // 單元學習：把單一年級的題庫依 id 序切成單元（4成語+2俚語+4字音+4字形≈14 條），
   // 尾端不足 6 條就併入前一單元。決定性切法：同年級永遠切出同樣的單元。
   function buildUnits(data, grade, take) {
@@ -365,6 +419,7 @@
     buildPhonicsQ: buildPhonicsQ, buildCharsQ: buildCharsQ,
     buildSynQ: buildSynQ, buildReadingQ: buildReadingQ, buildCustomQ: buildCustomQ,
     rngFromString: rngFromString, seededPick: seededPick, composeDaily: composeDaily,
+    composeReview: composeReview,
     weakStrong: weakStrong, bumpWrongSchedule: bumpWrongSchedule, buildUnits: buildUnits,
     dailyStreak: dailyStreak, customBooks: customBooks, customPool: customPool,
     nextDue: nextDue, gradeLabel: gradeLabel
@@ -454,7 +509,7 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom'];
+  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom', 'review'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
@@ -534,6 +589,8 @@
     var dueN = state.wrong.filter(function (w) { return (w.due || '') <= today(); }).length;
     if (dueN) $('cnt-wrong').textContent = state.wrong.length + ' 題待複習 · ' + dueN + ' 題到期';
     $('cnt-writing').textContent = '每日一句 · 仿寫';
+    var rvLast = (state.review || [])[(state.review || []).length - 1];
+    $('cnt-review').textContent = rvLast ? '上次 ' + rvLast.score + ' 分 · 挑日期出考卷' : '挑日期出考卷 · 滿分100';
     var uDone = Object.keys(state.units || {}).length;
     $('cnt-units').textContent = uDone ? '已完成 ' + uDone + ' 個單元' : '先教後考 · 逐關解鎖';
     $('cnt-drill').textContent = '照順序一題不漏';
@@ -659,6 +716,7 @@
       else if (go === 'write') startWrite();
       else if (go === 'flash') startFlash();
       else if (go === 'wrongbook') showWrongbook();
+      else if (go === 'review') showReview();
       else if (go === 'progress') showProgress();
     });
   });
@@ -763,7 +821,8 @@
     $('quizScore').textContent = quiz.mode === 'daily' ? '' : '得分 ' + quiz.score;
     $('quizBar').style.width = Math.round(100 * (snap.no - 1) / quiz.entries.length) + '%';
     $('quizTag').textContent = (quiz.mode === 'daily' ? '📅 每日練習 · ' : '') +
-      (e.rev ? '🔁 錯題複習 · ' : '') +
+      (quiz.mode === 'review' ? '📋 總結測驗 · ' : '') +
+      (e.rev ? (quiz.mode === 'review' ? '📕 來自錯題本 · ' : '🔁 錯題複習 · ') : '') +
       CAT_NAME[q.type] + (q.item.grade ? ' · ' + gradeLabel(q.item.grade) : '');
     var pas = $('quizPassage');
     if (q.passage) { pas.textContent = q.passage; pas.classList.remove('hidden'); }
@@ -911,6 +970,7 @@
   }
 
   function finishRound() {
+    if (quiz.mode === 'review') { completeReview(); return; }   // 考試模式：一次作答、不重做
     if (quiz.mode === 'daily' || quiz.mode === 'unit') {
       if (quiz.wrongNow.length) {
         // 精熟迴圈：錯的題目下一輪重做，直到全對
@@ -975,6 +1035,9 @@
     if (quiz && quiz.mode === 'daily' && !((state.daily || {})[today()] || {}).done) {
       if (!confirm('今日練習還沒完成，確定要離開？（進度不會保留）')) return;
     }
+    if (quiz && quiz.mode === 'review' && quiz.i < quiz.entries.length) {
+      if (!confirm('測驗還沒做完，確定要離開？（這次不會計分）')) return;
+    }
     show('home');
   });
 
@@ -994,6 +1057,11 @@
     }
     var entries = composeDaily(DATA, state.grades, today() + '|' + state.grades.join(','), counts);
     if (entries.length < 5) { alert('所選年級題目不足，請多勾幾個年級。'); return; }
+    // 記下今天實際出了哪些題（總結測驗依此精確重組當日題組）
+    var recPrev = state.daily[today()] || {};
+    recPrev.refs = entries.slice();
+    state.daily[today()] = recPrev;
+    save();
     // 錯題到期複習：最多 3 題混入今日練習
     var t = today();
     state.wrong.filter(function (w) { return (w.due || t) <= t; }).slice(0, 3)
@@ -1014,10 +1082,11 @@
       }
     });
     var ms = Date.now() - quiz.startedAt;
+    var keepRefs = (state.daily[today()] || {}).refs;
     state.daily[today()] = {
       done: true, grade: state.grades[state.grades.length - 1], gradesTxt: gradesLabel(state.grades),
       total: total, firstOk: firstOk, rounds: quiz.round,
-      ms: ms, finishedAt: Date.now(), wrong: wrongList
+      ms: ms, finishedAt: Date.now(), wrong: wrongList, refs: keepRefs
     };
     save();
     document.querySelector('#view-quiz .quiz-card').classList.add('hidden');
@@ -1052,6 +1121,112 @@
     });
     $('quizHome').addEventListener('click', function () { show('home'); });
   }
+
+  /* ---------- 總結測驗：挑日期＋錯題本出 100 分考卷 ---------- */
+
+  // 取某天每日練習的題目清單：新紀錄有 refs 可精確重組；
+  // 舊紀錄沒存就用同日種子＋預設配額近似重組（年級設定與當時不同會有出入）
+  function reviewEntriesForDate(date) {
+    var rec = (state.daily || {})[date] || {};
+    if (rec.refs && rec.refs.length) return rec.refs;
+    return composeDaily(DATA, state.grades, date + '|' + state.grades.join(','), null);
+  }
+
+  function showReview() {
+    var daily = state.daily || {};
+    var box = $('rvDays');
+    box.innerHTML = '';
+    var days = [];
+    for (var i = 0; i < 21; i++) {
+      var d = new Date(); d.setDate(d.getDate() - i);
+      var key = fmtDate(d);
+      if (daily[key] && (daily[key].done || (daily[key].refs || []).length)) days.push(key);
+    }
+    if (!days.length) {
+      box.innerHTML = '<div class="prog-hint">還沒有每日練習紀錄——先完成幾天每日練習，再回來考總結測驗。</div>';
+    } else {
+      days.forEach(function (key) {
+        var rec = daily[key];
+        var lab = document.createElement('label');
+        lab.className = 'rv-day';
+        var status = rec.done
+          ? '✅ ' + rec.firstOk + '/' + rec.total + '（' + Math.round(100 * rec.firstOk / rec.total) + '%）'
+          : '開始過、未完成';
+        lab.innerHTML = '<input type="checkbox" value="' + key + '"> <span>' + key +
+          '</span><span class="rv-day-sub">' + status + '</span>';
+        box.appendChild(lab);
+      });
+    }
+    renderReviewHistory();
+    show('review');
+  }
+
+  function renderReviewHistory() {
+    var el = $('rvHistory');
+    var hist = state.review || [];
+    var html = '<h3 class="prog-h3">📊 歷次成績</h3>';
+    if (!hist.length) {
+      html += '<div class="prog-hint">還沒考過總結測驗。</div>';
+    } else {
+      hist.slice(-8).reverse().forEach(function (h) {
+        html += '<div class="prog-row"><b>' + h.score + ' 分</b><span>' + h.date +
+          ' · 答對 ' + h.ok + '/' + h.n + ' · 考 ' + h.days.length + ' 天份' +
+          (h.gradesTxt ? ' · ' + h.gradesTxt : '') + '</span></div>';
+      });
+    }
+    el.innerHTML = html;
+  }
+
+  function startReviewTest() {
+    var days = Array.prototype.slice.call(document.querySelectorAll('#rvDays input:checked'))
+      .map(function (c) { return c.value; });
+    var includeMb = $('rvMb').checked;
+    if (!days.length && !includeMb) { alert('至少勾選一天，或勾選「混入錯題本題目」。'); return; }
+    var daysEntries = days.map(reviewEntriesForDate);
+    var entries = composeReview(daysEntries, includeMb ? state.wrong : [], 20, 6, Math.random);
+    if (entries.length < 5) { alert('可出的題目太少，請多勾幾天。'); return; }
+    beginQuiz(entries, 'review', null);
+    quiz.reviewDays = days;
+  }
+
+  function completeReview() {
+    var total = 0, firstOk = 0;
+    Object.keys(quiz.firstTry).forEach(function (k) { total++; if (quiz.firstTry[k]) firstOk++; });
+    var score = total ? Math.round(100 * firstOk / total) : 0;
+    var ms = Date.now() - quiz.startedAt;
+    state.review = state.review || [];
+    state.review.push({ date: today(), ts: Date.now(), days: quiz.reviewDays || [], n: total,
+                        ok: firstOk, score: score, ms: ms, gradesTxt: gradesLabel(state.grades) });
+    if (state.review.length > 30) state.review = state.review.slice(-30);
+    save();
+    document.querySelector('#view-quiz .quiz-card').classList.add('hidden');
+    var mins = Math.max(1, Math.round(ms / 60000));
+    var verdict = score >= 90 ? '💯 太棒了，這幾天的內容記得很牢！'
+      : score >= 75 ? '👍 掌握得不錯，答錯的題目已排入錯題複習。'
+      : score >= 60 ? '🟡 及格邊緣——這幾天的內容要再複習一下。'
+      : '❌ 分數偏低，之前的練習可能沒有用心做。錯題已排入複習，建議把這幾天的內容重新讀過。';
+    var r = $('quizResult');
+    r.innerHTML = '📋 總結測驗結束<br>' +
+      '<b style="font-size:2rem">' + score + '</b><small> / 100 分</small><br>' +
+      '答對 ' + firstOk + ' / ' + total + ' 題 · 用時約 ' + mins + ' 分鐘<br>' +
+      verdict + '<br>' +
+      '<small>成績已記錄——「總結測驗」頁和「學習進度」都看得到歷次分數</small><br>' +
+      '<button class="btn-primary" id="quizAgain">回首頁</button>';
+    r.classList.remove('hidden');
+    if (score >= 90) confetti();
+    $('quizAgain').addEventListener('click', function () { show('home'); });
+  }
+
+  $('reviewExit').addEventListener('click', function () { show('home'); });
+  $('rvStart').addEventListener('click', startReviewTest);
+  $('rvLast7').addEventListener('click', function () {
+    var d = new Date(); d.setDate(d.getDate() - 6);
+    var cut = fmtDate(d);
+    document.querySelectorAll('#rvDays input').forEach(function (c) { c.checked = c.value >= cut; });
+  });
+  $('rvClear').addEventListener('click', function () {
+    document.querySelectorAll('#rvDays input').forEach(function (c) { c.checked = false; });
+  });
 
   /* ---------- 小工具：吐司與彩帶 ---------- */
 
@@ -1445,6 +1620,30 @@
     }
     body.appendChild(weakDiv);
     renderDailyCal(body);
+    renderReviewScores(body);
+  }
+
+  // 家長檢視：歷次總結測驗成績（滿分 100）
+  function renderReviewScores(body) {
+    var hist = state.review || [];
+    var head = document.createElement('h3');
+    head.className = 'prog-h3';
+    head.textContent = '📋 總結測驗成績';
+    body.appendChild(head);
+    if (!hist.length) {
+      var hint = document.createElement('div');
+      hint.className = 'prog-hint';
+      hint.textContent = '還沒考過。首頁「總結測驗」可挑幾天的每日練習內容出考卷（滿分 100），檢驗有沒有真的學會。';
+      body.appendChild(hint);
+      return;
+    }
+    hist.slice(-8).reverse().forEach(function (h) {
+      var row = document.createElement('div');
+      row.className = 'prog-row';
+      row.innerHTML = '<b>' + h.score + ' 分</b><span>' + h.date + ' · 答對 ' + h.ok + '/' + h.n +
+        ' · 考 ' + h.days.length + ' 天份 · 約 ' + Math.max(1, Math.round(h.ms / 60000)) + ' 分鐘</span>';
+      body.appendChild(row);
+    });
   }
 
   // 家長檢視：近 14 天每日練習完成狀況，點日期看細節

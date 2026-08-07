@@ -122,6 +122,36 @@ console.log('每日練習');
   ok(PURE.dailyStreak({ '2026-08-01': { done: true } }, '2026-08-02') === 1, '連續天數計算（今天未做從昨天回數）');
 }
 
+console.log('總結測驗');
+{
+  const G = [1, 2, 3, 4, 5];
+  const day1 = PURE.composeDaily(D, G, '2026-08-05|x');
+  const day2 = PURE.composeDaily(D, G, '2026-08-06|x');
+  const wrongPool = [{ t: 'idioms', id: D.idioms[0].id }, { t: 'chars', id: D.chars[0].id }, { t: 'phonics', id: D.phonics[0].id }];
+  const rng = () => PURE.rngFromString('rv-test');
+  const r = PURE.composeReview([day1, day2], wrongPool, 20, 6, rng());
+  ok(r.length === 20, `總結測驗共 20 題（實際 ${r.length}）`);
+  const keys = r.map(e => e.t + ':' + e.id + (e.qi != null ? '#' + e.qi : ''));
+  ok(new Set(keys).size === keys.length, '總結測驗題目不重複');
+  ok(r.filter(e => e.rev).length <= 6, '錯題本混入至多 6 題');
+  // 同篇閱讀子題必須連續出現
+  const rIdx = {};
+  r.forEach((e, i) => { if (e.t === 'reading') (rIdx[e.id] = rIdx[e.id] || []).push(i); });
+  const contiguous = Object.keys(rIdx).every(id => rIdx[id].every((v, k) => k === 0 || v === rIdx[id][k - 1] + 1));
+  ok(contiguous, '同篇閱讀子題連續出現');
+  // 同種子決定性
+  const r2 = PURE.composeReview([day1, day2], wrongPool, 20, 6, rng());
+  ok(JSON.stringify(r) === JSON.stringify(r2), '同種子組卷一致');
+  // 排除當日混入的複習題（rev）與跨天重複
+  const dayDup = day1.concat([{ t: 'idioms', id: day1.find(e => e.t === 'idioms').id, rev: true }]);
+  const r3 = PURE.composeReview([dayDup, day1], [], 50, 0, rng());
+  const k3 = r3.map(e => e.t + ':' + e.id + (e.qi != null ? '#' + e.qi : ''));
+  ok(new Set(k3).size === k3.length && r3.every(e => !e.rev), '跨天去重且不收當日 rev 條目');
+  // 題池不足時題數縮減不爆
+  const small = PURE.composeReview([day1.slice(0, 3)], [], 20, 6, rng());
+  ok(small.length === 3, '題池不足時以實際題數出卷');
+}
+
 console.log('多選年級 / 弱點 / 錯題排程 / 寫作素材');
 {
   ok(PURE.filterByGrades(D.idioms, [3, 7]).every(i => i.grade === 3 || i.grade === 7), '多選年級過濾正確');
