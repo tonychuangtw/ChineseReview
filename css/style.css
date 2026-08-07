@@ -416,3 +416,12 @@ body {
 .rv-day .rv-day-sub { color: var(--dim); font-size: 0.82rem; margin-left: auto; }
 .rv-mb-row { display: flex; align-items: center; gap: 8px; margin: 10px 2px; font-size: 0.95rem; cursor: pointer; }
 .rv-mb-row input { accent-color: var(--accent); }
+
+/* ---- 使用說明與版本紀錄 ---- */
+.help-guide p { margin: 8px 2px; line-height: 1.7; }
+.ver-item { border-top: 1px solid var(--border); padding: 10px 2px; }
+.ver-item:first-child { border-top: none; }
+.ver-head { display: flex; align-items: baseline; gap: 10px; }
+.ver-head .ver-date { color: var(--dim); font-size: 0.85rem; }
+.ver-item ul { margin: 6px 0 0; padding-left: 20px; }
+.ver-item li { margin: 4px 0; line-height: 1.6; }

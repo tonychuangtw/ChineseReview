@@ -509,7 +509,7 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom', 'review'];
+  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom', 'review', 'help'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
@@ -1216,6 +1216,36 @@
     if (score >= 90) confetti();
     $('quizAgain').addEventListener('click', function () { show('home'); });
   }
+
+  /* ---------- 使用說明與版本紀錄（ℹ️，資料在 js/versions.js） ---------- */
+
+  var helpRendered = false;
+  $('helpBtn').addEventListener('click', function () {
+    if (!helpRendered) {
+      helpRendered = true;
+      var el = $('verList');
+      el.innerHTML = '';
+      (window.APP_VERSIONS || []).forEach(function (ver) {
+        var box = document.createElement('div');
+        box.className = 'ver-item';
+        var h = document.createElement('div');
+        h.className = 'ver-head';
+        h.innerHTML = '<b>' + ver.v + '</b><span class="ver-date">' + ver.date + '</span>';
+        box.appendChild(h);
+        var ul = document.createElement('ul');
+        ver.items.forEach(function (t) {
+          var li = document.createElement('li');
+          li.textContent = t;
+          ul.appendChild(li);
+        });
+        box.appendChild(ul);
+        el.appendChild(box);
+      });
+    }
+    show('help');
+    window.scrollTo(0, 0);
+  });
+  $('helpExit').addEventListener('click', function () { show('home'); });
 
   $('reviewExit').addEventListener('click', function () { show('home'); });
   $('rvStart').addEventListener('click', startReviewTest);
