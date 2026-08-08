@@ -425,3 +425,38 @@ body {
 .ver-head .ver-date { color: var(--dim); font-size: 0.85rem; }
 .ver-item ul { margin: 6px 0 0; padding-left: 20px; }
 .ver-item li { margin: 4px 0; line-height: 1.6; }
+
+/* 家長／老師儀表板 */
+.pt-open { width: 100%; margin-bottom: 0.9rem; }
+.pt-head {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.8rem;
+}
+.pt-head b { font-size: 1.05rem; }
+.pt-head span { color: var(--dim); font-size: 0.9rem; }
+.pt-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
+.pt-tile {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.7rem 0.4rem; text-align: center;
+}
+.pt-num { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.pt-label { color: var(--dim); font-size: 0.72rem; margin-top: 0.2rem; line-height: 1.3; }
+.pt-cat { margin: 0.45rem 0; }
+.pt-cat-top { display: flex; justify-content: space-between; font-size: 0.9rem; }
+.pt-cat-top span { color: var(--dim); }
+.pt-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pt-chip {
+  background: rgba(224, 85, 85, 0.08); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.3rem 0.6rem; font-size: 0.85rem;
+}
+.pt-chip b { color: var(--bad); }
+.pt-chip small { color: var(--dim); }
+.pt-mist {
+  background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--bad);
+  border-radius: 10px; padding: 0.6rem 0.8rem; margin: 0.45rem 0;
+}
+.pt-mist-q { font-size: 0.92rem; line-height: 1.5; }
+.pt-mist-a { font-size: 0.88rem; margin-top: 0.25rem; }
+.pt-bad { color: var(--bad); }
+.pt-good { color: var(--good); }
+.pt-mist small { color: var(--dim); display: block; margin-top: 0.15rem; }

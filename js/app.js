@@ -489,6 +489,25 @@
     save();
   }
 
+  // 家長儀表板用：逐題記錄「第一次作答」結果（答錯的多存題目／他選／正解文字）。
+  // 只留近 30 天、上限 800 筆；不自行 save()，由呼叫端接續的 bumpStat 一併存檔。
+  function logAnswer(q, idx, ok) {
+    state.answers = state.answers || [];
+    var rec = { ts: Date.now(), t: q.type, ok: ok ? 1 : 0 };
+    if (!ok) {
+      rec.id = q.item.id;
+      rec.q = String(q.question || '').slice(0, 90);
+      rec.chosen = String(q.options[idx] == null ? '' : q.options[idx]).slice(0, 60);
+      rec.correct = String(q.options[q.correct] == null ? '' : q.options[q.correct]).slice(0, 60);
+    }
+    state.answers.push(rec);
+    var cut = Date.now() - 30 * 86400000;
+    if (state.answers.length > 800 || (state.answers[0] && state.answers[0].ts < cut)) {
+      state.answers = state.answers.filter(function (a) { return a.ts >= cut; });
+      if (state.answers.length > 800) state.answers = state.answers.slice(-800);
+    }
+  }
+
   function deleteWrong(keys) { // keys: ['t:id', ...]
     var set = {};
     keys.forEach(function (k) { set[k] = true; });
@@ -509,7 +528,7 @@
 
   /* ---------- 視圖切換 ---------- */
 
-  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'writing', 'units', 'lesson', 'drill', 'custom', 'review', 'help'];
+  var views = ['subject', 'home', 'quiz', 'write', 'flash', 'wrongbook', 'progress', 'parent', 'writing', 'units', 'lesson', 'drill', 'custom', 'review', 'help'];
   function show(name) {
     views.forEach(function (v) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
@@ -911,6 +930,7 @@
       var k = entryKey(e);
       var firstEncounter = quiz.firstTry[k] === undefined;
       if (firstEncounter) quiz.firstTry[k] = ok;
+      if (firstEncounter) logAnswer(q, idx, ok);
       if (firstEncounter && quiz.mode === 'drill') {
         state.drillPos = state.drillPos || {};
         state.drillPos[quiz.drillKey] = quiz.drillBase + quiz.i + 1;
@@ -1620,6 +1640,11 @@
     show('progress');
     var body = $('progBody');
     body.innerHTML = '';
+    var pbtn = document.createElement('button');
+    pbtn.className = 'btn-primary pt-open';
+    pbtn.textContent = '👨‍🏫 家長／老師儀表板';
+    pbtn.addEventListener('click', showParent);
+    body.appendChild(pbtn);
     var rows = [
       ['成語', 'idioms'], ['俚語諺語', 'slang'], ['字音辨正', 'phonics'],
       ['字形辨正', 'chars'], ['手寫練習', 'write']
@@ -1748,6 +1773,156 @@
     }
   });
   $('progExit').addEventListener('click', function () { show('home'); });
+
+  /* ---------- 家長／老師儀表板 ---------- */
+
+  function fmtTsTime(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  function showParent() {
+    show('parent');
+    var body = $('parentBody');
+    body.innerHTML = '';
+    var daily = state.daily || {};
+    var todayRec = daily[today()];
+
+    function h3(t) {
+      var e = document.createElement('h3');
+      e.className = 'prog-h3';
+      e.textContent = t;
+      body.appendChild(e);
+    }
+    function hintEl(t) {
+      var e = document.createElement('div');
+      e.className = 'prog-hint';
+      e.textContent = t;
+      body.appendChild(e);
+    }
+    function tile(num, label) {
+      return '<div class="pt-tile"><div class="pt-num">' + num + '</div><div class="pt-label">' + label + '</div></div>';
+    }
+
+    // 頂部摘要
+    var head = document.createElement('div');
+    head.className = 'pt-head';
+    var b0 = document.createElement('b');
+    b0.textContent = '🔥 每日練習連續完成 ' + dailyStreak(daily, today()) + ' 天';
+    var s1 = document.createElement('span');
+    s1.textContent = todayRec && todayRec.done
+      ? '✅ 今日已完成（第一次答對 ' + todayRec.firstOk + ' / ' + todayRec.total + '）'
+      : '⬜ 今日每日練習還沒完成';
+    var s2 = document.createElement('span');
+    s2.textContent = '年級設定：' + gradesLabel(state.grades);
+    head.appendChild(b0); head.appendChild(s1); head.appendChild(s2);
+    body.appendChild(head);
+
+    // 三格數字
+    var ok7 = 0, tot7 = 0, done7 = 0;
+    for (var i = 0; i < 7; i++) {
+      var d7 = new Date(); d7.setDate(d7.getDate() - i);
+      var r7 = daily[fmtDate(d7)];
+      if (r7 && r7.done) { done7++; ok7 += r7.firstOk || 0; tot7 += r7.total || 0; }
+    }
+    var dueN = state.wrong.filter(function (w) { return (w.due || '') <= today(); }).length;
+    var tiles = document.createElement('div');
+    tiles.className = 'pt-tiles';
+    tiles.innerHTML =
+      tile(tot7 ? Math.round(100 * ok7 / tot7) + '%' : '—', '近7天首次答對率') +
+      tile(done7 + '/7', '近7天完成天數') +
+      tile(String(state.wrong.length), '錯題本累積（' + dueN + ' 題到期）');
+    body.appendChild(tiles);
+
+    // 近 14 天完成格（沿用進度頁的月曆，可點日期看細節）
+    renderDailyCal(body);
+
+    // 各類正確率（近 30 天，來自逐題作答紀錄）
+    h3('📊 各類正確率（近 30 天）');
+    var ans = state.answers || [];
+    var byCat = {};
+    ans.forEach(function (a) {
+      if (!byCat[a.t]) byCat[a.t] = { n: 0, ok: 0 };
+      byCat[a.t].n++;
+      if (a.ok) byCat[a.t].ok++;
+    });
+    var catKeys = Object.keys(byCat).sort(function (a, b) { return byCat[b].n - byCat[a].n; });
+    if (!catKeys.length) {
+      hintEl('本次改版起才開始逐題記錄，做過練習後這裡會出現各類長條圖。');
+    } else {
+      catKeys.forEach(function (c) {
+        var s = byCat[c];
+        var pct = Math.round(100 * s.ok / s.n);
+        var row = document.createElement('div');
+        row.className = 'pt-cat';
+        row.innerHTML = '<div class="pt-cat-top"><b></b><span>' + pct + '%（' + s.n + ' 題）</span></div>' +
+          '<div class="drill-track"><div class="drill-bar" style="width:' + pct + '%"></div></div>';
+        row.querySelector('b').textContent = CAT_NAME[c] || c;
+        body.appendChild(row);
+      });
+    }
+
+    // 一直記不住的題（錯 2 次以上，錯最多的排前面）
+    h3('🔁 一直記不住的題');
+    var hard = state.wrong.filter(function (w) { return (w.n || 0) >= 2; })
+      .sort(function (a, b) { return (b.n - a.n) || ((b.lastWrong || 0) - (a.lastWrong || 0)); })
+      .slice(0, 8);
+    if (!hard.length) {
+      hintEl('目前沒有反覆答錯的題目 🎉（同一題錯 2 次以上才會列在這裡）');
+    } else {
+      var chips = document.createElement('div');
+      chips.className = 'pt-chips';
+      hard.forEach(function (w) {
+        var chip = document.createElement('span');
+        chip.className = 'pt-chip';
+        var bb = document.createElement('b');
+        bb.textContent = labelOf(w.t, w.id);
+        var sm = document.createElement('small');
+        sm.textContent = '（' + (CAT_NAME[w.t] || w.t) + '，錯 ' + w.n + ' 次）';
+        chip.appendChild(bb); chip.appendChild(sm);
+        chips.appendChild(chip);
+      });
+      body.appendChild(chips);
+    }
+
+    // 最近錯題（近 14 天，含他選／正解）
+    h3('❌ 最近錯題（14 天內）');
+    var cut14 = Date.now() - 14 * 86400000;
+    var mist = ans.filter(function (a) { return !a.ok && a.ts >= cut14 && a.q; })
+      .sort(function (a, b) { return b.ts - a.ts; });
+    if (!mist.length) {
+      hintEl('最近 14 天沒有記錄到答錯的題目。（逐題紀錄自本次改版起累積）');
+    } else {
+      mist.slice(0, 12).forEach(function (a) {
+        var div = document.createElement('div');
+        div.className = 'pt-mist';
+        var q = document.createElement('div');
+        q.className = 'pt-mist-q';
+        q.textContent = a.q;
+        var ansRow = document.createElement('div');
+        ansRow.className = 'pt-mist-a';
+        var badB = document.createElement('b');
+        badB.className = 'pt-bad';
+        badB.textContent = '他選：' + (a.chosen || '—');
+        var goodB = document.createElement('b');
+        goodB.className = 'pt-good';
+        goodB.textContent = '正解：' + (a.correct || '—');
+        ansRow.appendChild(badB);
+        ansRow.appendChild(document.createTextNode('　'));
+        ansRow.appendChild(goodB);
+        var meta = document.createElement('small');
+        meta.textContent = (CAT_NAME[a.t] || a.t) + ' · ' + fmtTsTime(a.ts);
+        div.appendChild(q); div.appendChild(ansRow); div.appendChild(meta);
+        body.appendChild(div);
+      });
+      if (mist.length > 12) hintEl('僅顯示最近 12 筆（共 ' + mist.length + ' 筆）。');
+    }
+
+    // 總結測驗歷次成績
+    renderReviewScores(body);
+  }
+  $('parentExit').addEventListener('click', showProgress);
 
   /* ---------- 自創題庫（分冊分課選範圍） ---------- */
 
