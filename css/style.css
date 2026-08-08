@@ -460,3 +460,14 @@ body {
 .pt-bad { color: var(--bad); }
 .pt-good { color: var(--good); }
 .pt-mist small { color: var(--dim); display: block; margin-top: 0.15rem; }
+
+/* 跨帳號檢視（授權列） */
+.pt-cloud { margin-bottom: 0.8rem; }
+.pt-viewrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+.pt-viewrow small { color: var(--dim); }
+.pt-grant { background: var(--panel); border: 1px dashed var(--border); border-radius: 12px; padding: 0.6rem 0.8rem; }
+.pt-grant-form { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
+.pt-email {
+  flex: 1; min-width: 0; background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.9rem;
+}

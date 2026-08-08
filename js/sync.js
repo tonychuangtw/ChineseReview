@@ -88,12 +88,28 @@
     var data = gatherKeys();
     var h = blobHash(data);
     if (h === lastPushedHash) { if (done) done(null, false); return; }
-    api("PUT", data, function (err, res) {
-      if (err) { if (done) done(err); return; }
-      lastPushedHash = h;
-      if (res && res.updatedAt) setSyncTs(res.updatedAt);
-      setStatus("✓ 已同步");
-      if (done) done(null, true);
+    // 防蓋舊（2026-08-08）：背景舊分頁的定時 push 會把另一台裝置的新進度整包蓋掉。
+    // 推送前先看雲端時間戳：比本機 sync_ts 新代表別台寫過 → 改成套用雲端資料並重載，不推。
+    api("GET", null, function (gerr, gres) {
+      if (!gerr && gres && (gres.updatedAt || 0) > syncTs()) {
+        if (gres.blob) {
+          try {
+            Object.keys(gres.blob).forEach(function (k) {
+              if (k.indexOf(PREFIX) === 0) localStorage.setItem(k, gres.blob[k]);
+            });
+          } catch (e) {}
+          setSyncTs(gres.updatedAt);
+          location.reload();
+          return;
+        }
+      }
+      api("PUT", data, function (err, res) {
+        if (err) { if (done) done(err); return; }
+        lastPushedHash = h;
+        if (res && res.updatedAt) setSyncTs(res.updatedAt);
+        setStatus("✓ 已同步");
+        if (done) done(null, true);
+      });
     });
   }
 
@@ -178,8 +194,18 @@
     setInterval(function () { if (signedIn()) push(); }, PUSH_INTERVAL_MS);
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "hidden" && signedIn()) push();
+      // 切回分頁時拉一次雲端（2026-08-08）：修「另一台做完、這台舊分頁看不到」——
+      // 原本只有登入那一刻會 pull，掛在背景的分頁永遠不更新。
+      if (document.visibilityState === "visible" && signedIn()) {
+        pull(function (err, applied) { if (applied) location.reload(); });
+      }
     });
+    // 開頁時若已是登入狀態（分頁還原、session 未過期）也先拉一次
+    if (signedIn()) pull(function (err, applied) { if (applied) location.reload(); });
   }
+
+  // 給家長儀表板用的最小介面（授權管理 grants API 走這裡拿 token）
+  window.CloudSync = { signedIn: signedIn, token: token, apiBase: API_BASE };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

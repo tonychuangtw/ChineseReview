@@ -987,6 +987,7 @@
     $('quizNext').textContent = '下一題';
     $('quizNext').classList.remove('hidden');
     if (quiz.mode !== 'daily') $('quizScore').textContent = '得分 ' + quiz.score;
+    if (quiz.mode === 'daily') saveDailyRun(quiz.i + 1);
   }
 
   function finishRound() {
@@ -999,6 +1000,7 @@
         quiz.entries = again;
         quiz.i = 0;
         quiz.round++;
+        saveDailyRun(0);
         var fb = $('quizFeedback');
         renderQ();
         setStatusToast('還有 ' + again.length + ' 題沒答對，再來一輪 💪');
@@ -1065,9 +1067,41 @@
 
   function dailyRec() { return (state.daily = state.daily || {})[today()]; }
 
+  // 中途進度續做（2026-08-08）：每答完一題把「還剩哪些題、答到第幾題」寫進 state.dailyRun，
+  // 隨雲端同步 → 換裝置（或關掉分頁）都能從上次的題號繼續，不會從第 1 題重來。
+  function saveDailyRun(nextI) {
+    if (!quiz || quiz.mode !== 'daily') return;
+    state.dailyRun = {
+      date: today(), entries: quiz.entries, i: nextI, score: quiz.score,
+      round: quiz.round, firstTry: quiz.firstTry, wrongNow: quiz.wrongNow,
+      elapsed: Date.now() - quiz.startedAt
+    };
+    save();
+  }
+
+  function resumeDaily(run) {
+    quiz = {
+      entries: run.entries, i: run.i, score: run.score || 0, mode: 'daily', cat: null,
+      round: run.round || 1, firstTry: run.firstTry || {}, wrongNow: run.wrongNow || [],
+      startedAt: Date.now() - (run.elapsed || 0), combo: 0, best: 0, snaps: [], view: null
+    };
+    quiz.total = run.entries.length;
+    $('quizResult').classList.add('hidden');
+    document.querySelector('#view-quiz .quiz-card').classList.remove('hidden');
+    show('quiz');
+    if (quiz.i >= quiz.entries.length) { finishRound(); return; }
+    renderQ();
+    setStatusToast('接續上次進度，從第 ' + (quiz.i + 1) + ' 題繼續 👍');
+  }
+
   function startDaily() {
     var rec = dailyRec();
     if (rec && rec.done) { showDailySummary(rec); return; }
+    var run = state.dailyRun;
+    if (run && run.date === today() && Array.isArray(run.entries) && run.entries.length) {
+      resumeDaily(run);
+      return;
+    }
     // 弱點加權：正確率最低的類別 +2 題、最高的 -2 題
     var ws = weakStrong(state.stats);
     var counts = { idioms: 6, slang: 4, phonics: 6, chars: 6 };
@@ -1102,6 +1136,7 @@
       }
     });
     var ms = Date.now() - quiz.startedAt;
+    state.dailyRun = null;   // 今日已完成，清掉中途進度
     var keepRefs = (state.daily[today()] || {}).refs;
     state.daily[today()] = {
       done: true, grade: state.grades[state.grades.length - 1], gradesTxt: gradesLabel(state.grades),
@@ -1643,7 +1678,7 @@
     var pbtn = document.createElement('button');
     pbtn.className = 'btn-primary pt-open';
     pbtn.textContent = '👨‍🏫 家長／老師儀表板';
-    pbtn.addEventListener('click', showParent);
+    pbtn.addEventListener('click', function () { showParent(); });
     body.appendChild(pbtn);
     var rows = [
       ['成語', 'idioms'], ['俚語諺語', 'slang'], ['字音辨正', 'phonics'],
@@ -1678,9 +1713,9 @@
     renderReviewScores(body);
   }
 
-  // 家長檢視：歷次總結測驗成績（滿分 100）
-  function renderReviewScores(body) {
-    var hist = state.review || [];
+  // 家長檢視：歷次總結測驗成績（滿分 100）；histOverride = 跨帳號檢視時傳入對方資料
+  function renderReviewScores(body, histOverride) {
+    var hist = histOverride || state.review || [];
     var head = document.createElement('h3');
     head.className = 'prog-h3';
     head.textContent = '📋 總結測驗成績';
@@ -1701,9 +1736,9 @@
     });
   }
 
-  // 家長檢視：近 14 天每日練習完成狀況，點日期看細節
-  function renderDailyCal(body) {
-    var daily = state.daily || {};
+  // 家長檢視：近 14 天每日練習完成狀況，點日期看細節；dailyOverride = 跨帳號檢視時傳入對方資料
+  function renderDailyCal(body, dailyOverride) {
+    var daily = dailyOverride || state.daily || {};
     var head = document.createElement('h3');
     head.className = 'prog-h3';
     head.textContent = '👨‍👩‍👧 家長檢視 — 每日練習紀錄';
@@ -1782,11 +1817,14 @@
       ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   }
 
-  function showParent() {
+  // extState/ownerEmail：家長帳號檢視被授權孩子時，傳入從雲端抓回來的對方 state（唯讀）
+  function showParent(extState, ownerEmail) {
     show('parent');
+    var st = extState || state;
     var body = $('parentBody');
     body.innerHTML = '';
-    var daily = state.daily || {};
+    renderParentCloud(body, ownerEmail);
+    var daily = st.daily || {};
     var todayRec = daily[today()];
 
     function h3(t) {
@@ -1815,7 +1853,8 @@
       ? '✅ 今日已完成（第一次答對 ' + todayRec.firstOk + ' / ' + todayRec.total + '）'
       : '⬜ 今日每日練習還沒完成';
     var s2 = document.createElement('span');
-    s2.textContent = '年級設定：' + gradesLabel(state.grades);
+    s2.textContent = '年級設定：' + gradesLabel(st.grades || []) +
+      (ownerEmail ? ' · 檢視對象：' + ownerEmail : '');
     head.appendChild(b0); head.appendChild(s1); head.appendChild(s2);
     body.appendChild(head);
 
@@ -1826,21 +1865,22 @@
       var r7 = daily[fmtDate(d7)];
       if (r7 && r7.done) { done7++; ok7 += r7.firstOk || 0; tot7 += r7.total || 0; }
     }
-    var dueN = state.wrong.filter(function (w) { return (w.due || '') <= today(); }).length;
+    var wrongArr = st.wrong || [];
+    var dueN = wrongArr.filter(function (w) { return (w.due || '') <= today(); }).length;
     var tiles = document.createElement('div');
     tiles.className = 'pt-tiles';
     tiles.innerHTML =
       tile(tot7 ? Math.round(100 * ok7 / tot7) + '%' : '—', '近7天首次答對率') +
       tile(done7 + '/7', '近7天完成天數') +
-      tile(String(state.wrong.length), '錯題本累積（' + dueN + ' 題到期）');
+      tile(String(wrongArr.length), '錯題本累積（' + dueN + ' 題到期）');
     body.appendChild(tiles);
 
     // 近 14 天完成格（沿用進度頁的月曆，可點日期看細節）
-    renderDailyCal(body);
+    renderDailyCal(body, daily);
 
     // 各類正確率（近 30 天，來自逐題作答紀錄）
     h3('📊 各類正確率（近 30 天）');
-    var ans = state.answers || [];
+    var ans = st.answers || [];
     var byCat = {};
     ans.forEach(function (a) {
       if (!byCat[a.t]) byCat[a.t] = { n: 0, ok: 0 };
@@ -1865,7 +1905,7 @@
 
     // 一直記不住的題（錯 2 次以上，錯最多的排前面）
     h3('🔁 一直記不住的題');
-    var hard = state.wrong.filter(function (w) { return (w.n || 0) >= 2; })
+    var hard = wrongArr.filter(function (w) { return (w.n || 0) >= 2; })
       .sort(function (a, b) { return (b.n - a.n) || ((b.lastWrong || 0) - (a.lastWrong || 0)); })
       .slice(0, 8);
     if (!hard.length) {
@@ -1920,7 +1960,135 @@
     }
 
     // 總結測驗歷次成績
-    renderReviewScores(body);
+    renderReviewScores(body, st.review || []);
+  }
+
+  /* ---- 跨帳號檢視（email 綁定授權，後端 /api/grants + /api/progress?owner=）---- */
+
+  function ptApi(method, path, body, cb) {
+    var cs = window.CloudSync;
+    if (!cs || !cs.signedIn()) { cb('auth'); return; }
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, cs.apiBase + path);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + cs.token());
+    if (body) xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function () {
+      var data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status < 200 || xhr.status >= 300) cb((data && data.error) || ('http ' + xhr.status));
+      else cb(null, data);
+    };
+    xhr.onerror = function () { cb('network'); };
+    xhr.send(body ? JSON.stringify(body) : null);
+  }
+
+  function ptLoadChild(email) {
+    setStatusToast('載入 ' + email + ' 的進度…');
+    ptApi('GET', '/api/progress?level=main&app=chinese&owner=' + encodeURIComponent(email), null, function (err, res) {
+      if (err) { alert('讀不到對方進度：' + err); return; }
+      var childState = null;
+      try { childState = JSON.parse(((res && res.blob) || {})['chinese-review-v1'] || 'null'); } catch (e) {}
+      if (!childState) { alert('這個帳號還沒有雲端進度資料（要先在孩子的裝置登入並練習過）。'); return; }
+      showParent(childState, email);
+    });
+  }
+
+  // 儀表板最上方的「檢視對象」列＋「授權家長/老師」管理（只在看自己時顯示授權管理）
+  function renderParentCloud(body, ownerEmail) {
+    var box = document.createElement('div');
+    box.className = 'pt-cloud';
+    body.appendChild(box);
+    var cs = window.CloudSync;
+    if (!cs || !cs.signedIn()) {
+      box.innerHTML = '<small class="prog-hint">☁️ 右上角用 Google 登入後，可把進度授權給家長／老師的帳號：' +
+        '對方用自己的手機登入，就能在這頁看到孩子的儀表板。</small>';
+      return;
+    }
+    box.innerHTML = '<small class="prog-hint">☁️ 讀取授權資料…</small>';
+    ptApi('GET', '/api/grants?app=chinese', null, function (err, res) {
+      if (err) { box.innerHTML = '<small class="prog-hint">⚠️ 雲端連線失敗（' + err + '），僅顯示本機資料。</small>'; return; }
+      box.innerHTML = '';
+      var received = (res && res.received) || [];
+      // 檢視對象切換列（自己 + 每個授權我看的孩子）
+      if (received.length || ownerEmail) {
+        var row = document.createElement('div');
+        row.className = 'pt-viewrow';
+        var lab = document.createElement('small');
+        lab.textContent = '檢視對象：';
+        row.appendChild(lab);
+        var selfChip = document.createElement('button');
+        selfChip.className = 'chip' + (ownerEmail ? '' : ' active');
+        selfChip.textContent = '這台裝置（自己）';
+        selfChip.addEventListener('click', function () { showParent(); });
+        row.appendChild(selfChip);
+        received.forEach(function (g) {
+          var c = document.createElement('button');
+          c.className = 'chip' + (ownerEmail === g.ownerEmail ? ' active' : '');
+          c.textContent = '👧 ' + g.ownerEmail;
+          c.addEventListener('click', function () { ptLoadChild(g.ownerEmail); });
+          row.appendChild(c);
+        });
+        box.appendChild(row);
+      }
+      if (ownerEmail) return;   // 檢視他人時不顯示自己的授權管理
+      // 授權管理（孩子端操作：把自己的進度開放給家長/老師 email）
+      var mgr = document.createElement('div');
+      mgr.className = 'pt-grant';
+      var title = document.createElement('small');
+      title.className = 'prog-hint';
+      title.textContent = '🔗 授權家長／老師檢視這個帳號的進度（輸入對方 Google email）：';
+      mgr.appendChild(title);
+      var granted = (res && res.granted) || [];
+      if (granted.length) {
+        var glist = document.createElement('div');
+        glist.className = 'pt-chips';
+        granted.forEach(function (g) {
+          var chip = document.createElement('span');
+          chip.className = 'pt-chip';
+          var bb = document.createElement('b');
+          bb.textContent = g.viewer_email || g.viewerEmail || '';
+          chip.appendChild(bb);
+          var del = document.createElement('button');
+          del.className = 'wb-del';
+          del.textContent = '✕';
+          del.title = '取消授權';
+          del.addEventListener('click', function () {
+            if (!confirm('取消 ' + bb.textContent + ' 的檢視授權？')) return;
+            ptApi('DELETE', '/api/grants?app=chinese&viewerEmail=' + encodeURIComponent(bb.textContent), null, function (derr) {
+              if (derr) { alert('取消失敗：' + derr); return; }
+              showParent();
+            });
+          });
+          chip.appendChild(del);
+          glist.appendChild(chip);
+        });
+        mgr.appendChild(glist);
+      }
+      var form = document.createElement('div');
+      form.className = 'pt-grant-form';
+      var inp = document.createElement('input');
+      inp.type = 'email';
+      inp.placeholder = 'parent@gmail.com';
+      inp.className = 'pt-email';
+      var btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.textContent = '＋授權';
+      btn.addEventListener('click', function () {
+        var em = (inp.value || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { setStatusToast('請輸入正確的 email'); return; }
+        btn.disabled = true;
+        ptApi('POST', '/api/grants?app=chinese', { viewerEmail: em, role: 'viewer' }, function (aerr) {
+          btn.disabled = false;
+          if (aerr) { alert('授權失敗：' + aerr); return; }
+          setStatusToast('✓ 已授權 ' + em);
+          showParent();
+        });
+      });
+      form.appendChild(inp);
+      form.appendChild(btn);
+      mgr.appendChild(form);
+      box.appendChild(mgr);
+    });
   }
   $('parentExit').addEventListener('click', showProgress);
 
